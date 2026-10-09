@@ -99,6 +99,7 @@ Explicit machine project/repository overrides keep their existing precedence.
 | `ios.deviceType`              | iOS Simulator device type                                                                                                         |
 | `ios.runtime`                 | iOS Simulator runtime                                                                                                             |
 | `ios.configuration`           | Xcode configuration, such as `Debug` or `Release`                                                                                 |
+| `ios.scheme`                  | Shared Xcode scheme to build when the workspace has several; `--scheme` overrides it                                              |
 | `ios.remote`                  | `proxy`, `eas`, an approved remote Mac, or `auto` when this Mac is full or busy                                                   |
 | `ios.simslimProfile`          | SimSlim profile for local iOS devices                                                                                             |
 | `ios.signingIdentity`         | Keychain identity used to re-seal a device build                                                                                  |

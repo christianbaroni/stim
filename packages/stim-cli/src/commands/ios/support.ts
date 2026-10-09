@@ -61,6 +61,15 @@ export function resolveConfiguration(
   return fromFlag || iosConfigurationSetting(settings);
 }
 
+/** The --scheme flag as given, else ios.scheme; an EAS profile build takes only the flag, as it does for the configuration. */
+export function resolveSchemeSelection(
+  { scheme, easProfile }: { scheme?: string | null; easProfile?: string },
+  settings: SettingsObject | null | undefined,
+): string | undefined {
+  if (typeof scheme === 'string' || easProfile !== undefined) return scheme ?? undefined;
+  return iosStringSetting(settings, 'scheme') ?? undefined;
+}
+
 function iosStringSetting(settings: SettingsObject | null | undefined, key: string): string | null {
   const ios = settings?.['ios'];
   if (!ios || typeof ios !== 'object' || Array.isArray(ios)) return null;

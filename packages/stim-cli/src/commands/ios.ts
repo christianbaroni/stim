@@ -79,6 +79,7 @@ import {
   deviceLabel,
   resolveConfiguration,
   resolveDeviceType,
+  resolveSchemeSelection,
   resolveRuntime,
   resolveSimulatorAppFlag,
   resolveIosWait,
@@ -108,6 +109,7 @@ export {
   resolveConfiguration,
   resolveDeviceType,
   resolveRuntime,
+  resolveSchemeSelection,
   isReleaseConfiguration,
   podAction,
 } from './ios/support.ts';
@@ -517,7 +519,7 @@ async function runIos(
 
   const configuration = opts.easProfile !== undefined ? null : resolveConfiguration(opts.configuration, settings);
   builtConfiguration = configuration ?? 'Debug';
-  const buildScheme = opts.scheme;
+  const buildScheme = resolveSchemeSelection(opts, settings);
   const release = isReleaseConfiguration(configuration);
   const cachePolicy = artifactCachePolicy(optimizations, useBuildCache, release);
   useBuildCache = cachePolicy.read;

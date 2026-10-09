@@ -20,6 +20,7 @@ import type { SimulatorArch } from '../../engine/agent-device.ts';
 import { isPhysicalDeviceRequest } from '../native-runtime.ts';
 import type { IosDeps } from './dependencies.ts';
 import {
+  resolveSchemeSelection,
   deviceModelRefusal,
   isReleaseConfiguration,
   PLATFORM,
@@ -132,7 +133,8 @@ export async function planIos(
       remedy: 'Run `stim ios` to build for the remote device, or unset ios.remote to plan the owned simulator.',
     });
   }
-  const refusal = schemeRefusal(root, opts.scheme, isExpo);
+  const scheme = resolveSchemeSelection(opts, settings);
+  const refusal = schemeRefusal(root, scheme, isExpo);
   if (refusal) return refuse({ code: refusal.code, message: refusal.message ?? '', remedy: refusal.remedy ?? '' });
   const configuration = resolveConfiguration(opts.configuration, settings);
   const buildProfile = optimizationBuildProfile('ios', optimizations);
@@ -198,7 +200,7 @@ export async function planIos(
     if (planned.kind === 'hosted' && 'runtime' in planned.choice) arch = keyArch(planned.choice.architecture);
   }
   const cacheKey = buildCacheKey(PLATFORM, fingerprint.hash, {
-    scheme: opts.scheme,
+    scheme,
     ...(configuration ? { configuration } : {}),
     isSimulator: true,
     ...(arch ? { arch } : {}),
@@ -214,7 +216,7 @@ export async function planIos(
       cachePolicy,
       providerConfig: d.resolveCacheProviderConfig(settingsContext),
       expoRemote:
-        cachePolicy.remote && !buildProfile && !opts.scheme
+        cachePolicy.remote && !buildProfile && !scheme
           ? { runOptions: iosProviderRunOptions(configuration, arch) }
           : null,
     },
