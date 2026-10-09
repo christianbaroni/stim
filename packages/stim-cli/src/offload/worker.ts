@@ -418,7 +418,12 @@ async function build(job: WorkerJob): Promise<WorkerResult> {
       platform === 'android' ? await compileAndroid(job, root, log, time) : await compileIos(job, root, log, time);
     if (!compiled.ok) return failed(compiled.code, compiled.message);
     const settled = await time('fingerprintMs', () =>
-      refingerprintAfterMutation({ projectRoot: root, platform, previousHash: fingerprint }),
+      refingerprintAfterMutation({
+        projectRoot: root,
+        platform,
+        previousHash: fingerprint,
+        iosProjectPath: iosProject.relative,
+      }),
     );
     if (!settled || settled.moved) return failed('fingerprint-moved', 'The inputs changed during the build there.');
   }

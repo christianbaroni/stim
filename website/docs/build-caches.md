@@ -49,7 +49,8 @@ A bare app whose Xcode project is not in `ios/` sets `ios.projectPath` to its
 directory, relative to the app. A subdirectory is hashed the way `ios/` is. When
 the project sits in the app directory itself (`"."`), Stim cannot tell the
 native sources from the JavaScript beside them, so it hashes every top-level
-entry except `node_modules`, `Pods`, `build` and `android`: a JavaScript edit
+entry except `node_modules`, `Pods`, `build`, `android`, `.stim.json` and
+anything git ignores: a JavaScript edit
 then misses the cache and rebuilds incrementally rather than reusing a build
 that might be stale.
 

@@ -374,11 +374,19 @@ export function iosProjectDirSettingError(settings: unknown, appRoot: string): s
   }
 }
 
+const INVALID_IOS_PROJECT_DIR = '\0invalid ios.projectPath';
+
 export function projectIosDir(root: string): IosProjectDir {
+  let settings: SettingsObject;
   try {
-    return iosProjectDirSetting(settingsForProject(root), root);
+    settings = settingsForProject(root);
   } catch {
     return { dir: join(root, DEFAULT_IOS_PROJECT_PATH), relative: DEFAULT_IOS_PROJECT_PATH, custom: false };
+  }
+  try {
+    return iosProjectDirSetting(settings, root);
+  } catch {
+    return { dir: join(root, INVALID_IOS_PROJECT_DIR), relative: INVALID_IOS_PROJECT_DIR, custom: true };
   }
 }
 

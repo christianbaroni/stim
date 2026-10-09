@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import { isDeepStrictEqual } from 'util';
 import * as expoFingerprint from '@expo/fingerprint';
 import type { Fingerprint, FingerprintSource, Options as FingerprintOptions } from '@expo/fingerprint';
+import { loadConfigAsync as loadFingerprintConfig } from '@expo/fingerprint/build/Config.js';
 import { buildUploadTimeoutMs, type BuildCacheCapability, type ProviderCallResult } from '@stim-cli/cache';
 import { resolveArtifact, storeArtifact } from '@stim-cli/core';
 import { getExecutor } from '../exec.ts';
@@ -48,31 +49,60 @@ export const DEFAULT_FINGERPRINT_IGNORES: string[] = [
   '**/android/.idea/**',
 ];
 
-const APP_ROOT_IOS_SKIPPED = new Set(['node_modules', 'Pods', 'build', 'android', '.git', '.DS_Store']);
+const APP_ROOT_IOS_SKIPPED = new Set(['node_modules', 'Pods', 'build', 'android', '.git', '.DS_Store', '.stim.json']);
+
+function gitIgnoredNames(projectRoot: string, names: readonly string[]): Set<string> {
+  if (names.length === 0) return new Set();
+  const out = getExecutor().runFileQuiet('git', ['-C', projectRoot, 'check-ignore', '--', ...names]);
+  return new Set(
+    String(out ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean),
+  );
+}
 
 /**
  * Sources and ignores that make an `ios.projectPath` outside `ios/` count the way
  * @expo/fingerprint's bare sourcer counts `ios/`. A project directory that is the
  * app itself cannot be told apart from the app's JavaScript, so every top-level
- * entry except dependencies and build output is hashed: a JS change misses the
- * cache instead of risking a stale native build.
+ * entry git tracks, except dependencies and build output, is hashed: a JS change
+ * misses the cache instead of risking a stale native build.
  */
 export function iosProjectFingerprintOptions(
   projectRoot: string,
   iosProjectPath: string,
-  readdir: (dir: string) => { name: string; isDirectory(): boolean }[] = (dir) =>
-    readdirSync(dir, { withFileTypes: true }),
+  {
+    list = (dir: string) => readdirSync(dir),
+    isDirectory = (path: string) => statSync(path).isDirectory(),
+    ignored = gitIgnoredNames,
+  }: {
+    list?: (dir: string) => string[];
+    isDirectory?: (path: string) => boolean;
+    ignored?: (projectRoot: string, names: readonly string[]) => Set<string>;
+  } = {},
 ): Pick<FingerprintOptions, 'extraSources' | 'ignorePaths'> {
   if (iosProjectPath === DEFAULT_IOS_PROJECT_PATH) return {};
   const appRoot = iosProjectPath === '.';
   const prefix = appRoot ? '' : `${iosProjectPath}/`;
   const reasons = ['ios.projectPath'];
-  const extraSources: NonNullable<FingerprintOptions['extraSources']> = appRoot
-    ? readdir(projectRoot)
-        .filter((entry) => !APP_ROOT_IOS_SKIPPED.has(entry.name) && !entry.name.startsWith('.watchman-cookie-'))
-        .toSorted((a, b) => a.name.localeCompare(b.name))
-        .map((entry) => ({ type: entry.isDirectory() ? 'dir' : 'file', filePath: entry.name, reasons }))
-    : [{ type: 'dir', filePath: iosProjectPath, reasons }];
+  let extraSources: NonNullable<FingerprintOptions['extraSources']> = [
+    { type: 'dir', filePath: iosProjectPath, reasons },
+  ];
+  if (appRoot) {
+    const names = list(projectRoot).filter(
+      (name) => !APP_ROOT_IOS_SKIPPED.has(name) && !name.startsWith('.watchman-cookie-'),
+    );
+    const skip = ignored(projectRoot, names);
+    extraSources = names
+      .filter((name) => !skip.has(name))
+      .toSorted((a, b) => a.localeCompare(b))
+      .map((filePath) => ({
+        type: isDirectory(join(projectRoot, filePath)) ? 'dir' : 'file',
+        filePath,
+        reasons,
+      }));
+  }
   return {
     extraSources,
     ignorePaths: [
@@ -105,6 +135,11 @@ export async function fingerprintProject(
       : undefined;
   // With DEBUG set, @expo/fingerprint profiles sourcers on stdout unless silent.
   const ios = platform === 'ios' ? iosProjectFingerprintOptions(projectRoot, iosProjectPath) : {};
+  if (ios.extraSources) {
+    // An explicit extraSources replaces fingerprint.config.js's list in @expo/fingerprint, so keep the project's own.
+    const config = await loadFingerprintConfig(projectRoot, true);
+    ios.extraSources = [...(config?.extraSources ?? []), ...ios.extraSources];
+  }
   const options: FingerprintOptions = {
     ...platforms,
     ...(debug ? { debug } : {}),

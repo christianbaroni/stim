@@ -184,15 +184,16 @@ export interface PodsInputs {
   hasPodfile: boolean;
   podfileLockChanged: boolean;
   stale: { noPods?: boolean; stale: boolean; reason?: string };
+  dir?: string;
 }
 
-export function podsPlan({ hasIos, hasPodfile, podfileLockChanged, stale }: PodsInputs): StepPlan {
-  if (!hasIos) return { run: false, reason: 'no ios/ directory' };
-  if (!hasPodfile) return { run: false, reason: 'no ios/Podfile' };
-  if (stale.noPods) return { run: false, reason: 'no ios/Pods and no ios/Podfile.lock' };
-  if (podfileLockChanged) return { run: true, reason: 'ios/Podfile.lock changed' };
-  if (stale.stale) return { run: true, reason: stale.reason ?? 'ios/Pods does not match ios/Podfile.lock' };
-  return { run: false, reason: 'ios/Podfile.lock unchanged' };
+export function podsPlan({ hasIos, hasPodfile, podfileLockChanged, stale, dir = 'ios/' }: PodsInputs): StepPlan {
+  if (!hasIos) return { run: false, reason: `no ${dir || './'} directory` };
+  if (!hasPodfile) return { run: false, reason: `no ${dir}Podfile` };
+  if (stale.noPods) return { run: false, reason: `no ${dir}Pods and no ${dir}Podfile.lock` };
+  if (podfileLockChanged) return { run: true, reason: `${dir}Podfile.lock changed` };
+  if (stale.stale) return { run: true, reason: stale.reason ?? `${dir}Pods does not match ${dir}Podfile.lock` };
+  return { run: false, reason: `${dir}Podfile.lock unchanged` };
 }
 
 export type DefaultBranchNote = { kind: 'match' } | { kind: 'warn' | 'unknown'; lines: string[] };
@@ -580,6 +581,7 @@ export async function refreshMainCheckout({
     hasPodfile: podState.hasPodfile,
     podfileLockChanged: pathChangedBetween(root, before, head, gitPath(app, ios.relative, 'Podfile.lock')),
     stale: podsAreStale(podState.lockText, podState.manifestText, podState.dir),
+    dir: podState.dir,
   });
   if (!pods.run) {
     emit(stepLine('pods', `${where}${pods.reason}`, 'skipped'));

@@ -1360,8 +1360,9 @@ export async function detectFingerprintParity(
   }
 
   try {
-    const project = await fingerprintProject(projectRoot, { platform, createFingerprint });
-    const clean = await fingerprintProject(worktree, { platform, createFingerprint });
+    const iosProjectPath = projectIosDir(projectRoot).relative;
+    const project = await fingerprintProject(projectRoot, { platform, iosProjectPath, createFingerprint });
+    const clean = await fingerprintProject(worktree, { platform, iosProjectPath, createFingerprint });
     if (!project || !clean) return null;
     if (project.hash === clean.hash) return null;
     const changed = diffFingerprintSources({

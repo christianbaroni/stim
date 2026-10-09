@@ -52,6 +52,7 @@ import {
 } from '../workspace/worktree.ts';
 import type { WorktreeEntry } from '../workspace/worktree.ts';
 import { endedPullRequest, pullRequestLookup } from '../workspace/pull-request.ts';
+import { discoverXcodeProject } from '../engine/xcode.ts';
 
 interface WorktreeSettings {
   worktree?: { exclude?: string[] };
@@ -373,22 +374,35 @@ export function porcelainPath(line: string): string | null {
 const SAFE_DIFF_PATH = /^[A-Za-z0-9._/-]+$/;
 
 const POD_CHURN_PATH = /(?:^|\/)ios\/(?:Podfile\.lock|[^/]+\.xcodeproj\/project\.pbxproj)$/;
-const POD_CHURN_FILE = /^(?:Podfile\.lock|[^/]+\.xcodeproj\/project\.pbxproj)$/;
+export interface CustomIosDir {
+  dir: string;
+  project: string | null;
+}
 
-function isPodChurn(path: string, iosDirs: readonly string[]): boolean {
+function isPodChurn(path: string, iosDirs: readonly CustomIosDir[]): boolean {
   if (POD_CHURN_PATH.test(path)) return true;
-  return iosDirs.some((dir) => {
+  return iosDirs.some(({ dir, project }) => {
     const prefix = dir === '.' ? '' : `${dir}/`;
-    return path.startsWith(prefix) && POD_CHURN_FILE.test(path.slice(prefix.length));
+    const rest = path.startsWith(prefix) ? path.slice(prefix.length) : null;
+    return rest === 'Podfile.lock' || (project !== null && rest === `${project}.xcodeproj/project.pbxproj`);
   });
 }
 
-export function customIosDirs(worktree: string): string[] {
+export function customIosDirs(worktree: string): CustomIosDir[] {
+  let root: string;
+  try {
+    root = realpathSync(worktree);
+  } catch {
+    return [];
+  }
   return Object.keys(loadConfig()?.projects ?? {})
     .filter((path) => isPathPrefix(worktree, path))
-    .map((path) => projectIosDir(path))
-    .filter((ios) => ios.custom)
-    .map((ios) => relative(worktree, ios.dir) || '.');
+    .map((path) => ({ path, ios: projectIosDir(path) }))
+    .filter(({ ios }) => ios.custom && existsSync(ios.dir))
+    .map(({ path, ios }) => ({
+      dir: relative(root, ios.dir) || '.',
+      project: discoverXcodeProject(path, ios.dir).name ?? null,
+    }));
 }
 
 const WATCHMAN_COOKIE_PATH = /(?:^|\/)\.watchman-cookie-[A-Za-z0-9._-]+$/;
@@ -409,7 +423,10 @@ interface PodChurnResult {
   restore: string[];
 }
 
-export function excludePodChurn(lines: string[] | null | undefined, iosDirs: readonly string[] = []): PodChurnResult {
+export function excludePodChurn(
+  lines: string[] | null | undefined,
+  iosDirs: readonly CustomIosDir[] = [],
+): PodChurnResult {
   const kept: string[] = [];
   const restore: string[] = [];
   for (const line of lines || []) {
