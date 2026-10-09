@@ -2,10 +2,11 @@ import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { projectRootDirectories } from '@stim-cli/core/state';
 import type { AndroidProject } from './android-project.ts';
+import type { WebProject } from './web-project.ts';
 import type { SettingsObject } from '../workspace/settings.ts';
 
 export type ProjectPlatform = 'ios' | 'android' | 'macos' | 'web';
-type ProjectOperation = 'ios' | 'android' | 'dev-server';
+type ProjectOperation = 'ios' | 'android' | 'dev-server' | 'web';
 
 interface ProjectProblem {
   kind: 'not-an-app' | 'unreadable' | 'ambiguous';
@@ -19,6 +20,7 @@ interface ProjectMatch {
   ownedRoots?: readonly string[];
   platforms(settings: SettingsObject): ProjectPlatform[];
   android?(): Promise<AndroidProject>;
+  web?(): Promise<WebProject>;
   validate?(operation: ProjectOperation): ProjectProblem | null | undefined;
 }
 
@@ -31,6 +33,7 @@ export interface ProjectRegistry {
   findProjectRoot(startDir: string): string | null;
   projectProblem(root: string, operation: ProjectOperation): ProjectProblem | null;
   selectAndroid(root: string): { load: () => Promise<AndroidProject> } | { problem: ProjectProblem };
+  selectWeb(root: string): { load: () => Promise<WebProject> } | { problem: ProjectProblem };
   isMobileProject(root: string): boolean;
   keepsWorkspace(root: string): boolean;
   detectPlatforms(root: string, settings: SettingsObject): ProjectPlatform[];
@@ -138,6 +141,23 @@ export function createProjectRegistry(integrations: readonly ProjectIntegration[
     };
   }
 
+  function selectWeb(root: string): ReturnType<ProjectRegistry['selectWeb']> {
+    root = canonicalPath(root);
+    const matches = inspect(root);
+    const problem = ownedRootProblem(root, matches);
+    if (problem) return { problem };
+    const selected = operationSelection(root, matches, 'web');
+    if ('problem' in selected) return selected;
+    if (selected.match.web) return { load: selected.match.web };
+    return {
+      problem: {
+        kind: 'not-an-app',
+        message: `The ${selected.match.id} integration does not provide a web operation.`,
+        remedy: 'Use an integration with a web runtime recipe.',
+      },
+    };
+  }
+
   function isMobileProject(root: string): boolean {
     root = canonicalPath(root);
     const matches = inspect(root);
@@ -163,5 +183,13 @@ export function createProjectRegistry(integrations: readonly ProjectIntegration[
     return ordered.filter((platform) => platforms.has(platform));
   }
 
-  return { findProjectRoot, projectProblem, selectAndroid, isMobileProject, keepsWorkspace, detectPlatforms };
+  return {
+    findProjectRoot,
+    projectProblem,
+    selectAndroid,
+    selectWeb,
+    isMobileProject,
+    keepsWorkspace,
+    detectPlatforms,
+  };
 }
