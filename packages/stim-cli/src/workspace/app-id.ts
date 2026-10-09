@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync, type Dirent } from 'fs';
 import { join } from 'path';
 import { readProjectConfig } from '../engine/remote-cache.ts';
 import { readAppConfigText, readAppJson } from './project.ts';
+import { projectIosDir } from './settings.ts';
 
 interface AppIds {
   bundleId: string | null;
@@ -55,7 +56,7 @@ export function detectAndroidPackage(projectRoot: string): string | null {
 }
 
 function detectBundleIdFromPbxproj(projectRoot: string): string | null {
-  const iosDir = join(projectRoot, 'ios');
+  const iosDir = projectIosDir(projectRoot).dir;
   if (!existsSync(iosDir)) return null;
   let entries: Dirent[];
   try {

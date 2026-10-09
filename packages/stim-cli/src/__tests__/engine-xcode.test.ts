@@ -132,6 +132,19 @@ function stubProject(root: string, { workspace = false, project = true, name = '
   return ios;
 }
 
+describe('discoverXcodeProject with ios.projectPath', () => {
+  test('finds the project in the configured directory instead of ios/', () => {
+    mkdirSync(join(tmp, 'RNTesterPods.xcodeproj'));
+    mkdirSync(join(tmp, 'RNTesterPods.xcworkspace'));
+    expect(discoverXcodeProject(tmp, tmp)).toMatchObject({
+      flag: '-workspace',
+      dir: tmp,
+      appRoot: tmp,
+      path: join(tmp, 'RNTesterPods.xcworkspace'),
+    });
+  });
+});
+
 describe('pickXcodeProject', () => {
   test('a workspace wins over a project, because CocoaPods links through it', () => {
     expect(pickXcodeProject(['App.xcodeproj', 'App.xcworkspace', 'Podfile'])).toEqual({
@@ -183,6 +196,7 @@ describe('discoverXcodeProject', () => {
       file: 'App.xcworkspace',
       name: 'App',
       dir: join(tmp, 'ios'),
+      appRoot: tmp,
       path: join(tmp, 'ios', 'App.xcworkspace'),
     });
   });
@@ -374,6 +388,21 @@ describe('listSchemes and resolveScheme', () => {
     });
     expect(result.scheme).toBe(expected);
     expect(result.error?.code).toBe(expected ? undefined : 'STIM_NO_SCHEME');
+  });
+
+  test('resolveScheme reads app.json from the app directory when the Xcode project sits in it', () => {
+    mkdirSync(join(tmp, 'RNSACExample.xcworkspace'));
+    writeFileSync(join(tmp, 'app.json'), '{"name":"safe-area-example"}');
+    setExecutor({
+      run: () => '',
+      runQuiet: () => null,
+      spawn: () => {},
+      runFile: () =>
+        JSON.stringify({
+          workspace: { name: 'RNSACExample', schemes: ['Pods-ReactTestApp', 'ReactTestApp', 'safe-area-example'] },
+        }),
+    });
+    expect(resolveScheme(discoverXcodeProject(tmp, tmp)).scheme).toBe('safe-area-example');
   });
 
   test('the workspace scheme retains priority over an app.json name', () => {

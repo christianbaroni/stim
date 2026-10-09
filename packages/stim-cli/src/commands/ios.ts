@@ -35,6 +35,8 @@ import {
   cacheProviderSettingError,
   iosLanHostSetting,
   iosLanHostSettingError,
+  iosProjectDirSetting,
+  iosProjectDirSettingError,
   iosSigningIdentitySetting,
   iosSigningIdentitySettingError,
   iosSigningIdentitySha1Setting,
@@ -257,6 +259,12 @@ function unlessCancelled(
     failure: { code: 'STIM_CANCELLED', message: 'before install' },
     compilationCache: result.artifact.cache.compilation,
   };
+}
+
+function iosProjectPathError(settings: unknown, root: string, isExpo: () => boolean): string | null {
+  const error = iosProjectDirSettingError(settings, root);
+  if (error || !iosProjectDirSetting(settings, root).custom || !isExpo()) return error;
+  return 'ios.projectPath applies to bare React Native apps only: expo prebuild generates and builds ios/. Remove it for this Expo app.';
 }
 
 function explicitSchemeRefusal(root: string, scheme: string | undefined, isExpo: boolean, d: IosDeps): FailArgs | null {
@@ -505,6 +513,7 @@ async function runIos(
     iosSigningIdentitySettingError(settings),
     iosSigningIdentitySha1SettingError(settings),
     iosLanHostSettingError(settings),
+    iosProjectPathError(settings, root, () => d.detectIsExpo(root)),
   ]) {
     if (settingError) {
       return fail({

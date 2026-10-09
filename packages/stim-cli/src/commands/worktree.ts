@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import type { Command } from 'commander';
 import { phaseLine, plural, releasedLeaseFact, shortUdid } from '../command-output.ts';
 import {
+  projectIosDir,
   resolveSettings,
   SETTING_SHAPE_REMEDY,
   settingShapeErrors,
@@ -372,6 +373,23 @@ export function porcelainPath(line: string): string | null {
 const SAFE_DIFF_PATH = /^[A-Za-z0-9._/-]+$/;
 
 const POD_CHURN_PATH = /(?:^|\/)ios\/(?:Podfile\.lock|[^/]+\.xcodeproj\/project\.pbxproj)$/;
+const POD_CHURN_FILE = /^(?:Podfile\.lock|[^/]+\.xcodeproj\/project\.pbxproj)$/;
+
+function isPodChurn(path: string, iosDirs: readonly string[]): boolean {
+  if (POD_CHURN_PATH.test(path)) return true;
+  return iosDirs.some((dir) => {
+    const prefix = dir === '.' ? '' : `${dir}/`;
+    return path.startsWith(prefix) && POD_CHURN_FILE.test(path.slice(prefix.length));
+  });
+}
+
+export function customIosDirs(worktree: string): string[] {
+  return Object.keys(loadConfig()?.projects ?? {})
+    .filter((path) => isPathPrefix(worktree, path))
+    .map((path) => projectIosDir(path))
+    .filter((ios) => ios.custom)
+    .map((ios) => relative(worktree, ios.dir) || '.');
+}
 
 const WATCHMAN_COOKIE_PATH = /(?:^|\/)\.watchman-cookie-[A-Za-z0-9._-]+$/;
 
@@ -391,12 +409,12 @@ interface PodChurnResult {
   restore: string[];
 }
 
-export function excludePodChurn(lines: string[] | null | undefined): PodChurnResult {
+export function excludePodChurn(lines: string[] | null | undefined, iosDirs: readonly string[] = []): PodChurnResult {
   const kept: string[] = [];
   const restore: string[] = [];
   for (const line of lines || []) {
     const path = porcelainPath(line);
-    if (path && String(line).startsWith(' M ') && SAFE_DIFF_PATH.test(path) && POD_CHURN_PATH.test(path)) {
+    if (path && String(line).startsWith(' M ') && SAFE_DIFF_PATH.test(path) && isPodChurn(path, iosDirs)) {
       restore.push(path);
       continue;
     }
@@ -771,7 +789,7 @@ function inspectRemoval(path: string, mergedHead?: string): RemovalInspection {
   const gitAnswered = hasUncommittedWork(path);
   const allDirty = gitAnswered ? dirtyPaths(path, { limit: Infinity }) : [];
   const { lines: withoutCookies, cookies } = excludeWatchmanCookies(allDirty);
-  const { lines: dirtyLines, restore: podChurn } = excludePodChurn(withoutCookies);
+  const { lines: dirtyLines, restore: podChurn } = excludePodChurn(withoutCookies, customIosDirs(path));
   const dirty = gitAnswered === null ? null : dirtyLines.length > 0;
   const unpushed = unpushedCommits(path);
   const merged = Boolean(mergedHead) && resolveFullRef(path, 'HEAD') === mergedHead;

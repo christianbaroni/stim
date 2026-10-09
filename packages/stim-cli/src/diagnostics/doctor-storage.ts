@@ -5,6 +5,7 @@ import { apkOutputsDir } from '../engine/gradle.ts';
 import { sharedBuildCache, workspaceDerivedData } from '../workspace/paths.ts';
 import { filesystemDevice, temporaryRoot } from '../temporary.ts';
 import { repoRoot, resolveSourceCheckout } from '../workspace/worktree.ts';
+import { projectIosDir } from '../workspace/settings.ts';
 
 export function checkStorageLayout(
   projectRoot: string,
@@ -48,7 +49,7 @@ export function checkStorageLayout(
     const cacheFix =
       'Place STIM_BUILD_CACHE / machine caches.buildCache on the build-output volume, ' +
       'or accept the full-copy cost of keeping the cache on a separate volume.';
-    const localIos = platform === 'ios' || (platform !== 'android' && existsSync(join(projectRoot, 'ios')));
+    const localIos = platform === 'ios' || (platform !== 'android' && existsSync(projectIosDir(projectRoot).dir));
     if (localIos && host === 'darwin') {
       const output = join(workspaceDerivedData(projectRoot), 'Build', 'Products');
       check('iOS build-cache storage', [output, cache], cacheFix);

@@ -8,6 +8,7 @@ import { createLineReader, stripAnsi, waitForChild } from '../process-output.ts'
 import { spawnDeclared } from './spawn-claims.ts';
 import { bundlerPin } from './bundler.ts';
 import { HEARTBEAT_INTERVAL_MS, startBuildHeartbeat } from './xcode.ts';
+import { projectIosDir } from '../workspace/settings.ts';
 
 type SpawnFn = (cmd: string, args: string[], opts: Record<string, unknown>) => ChildProcess;
 
@@ -98,18 +99,19 @@ function extractRubyHead(lines: string[]): PodDiagnostics | null {
 export function podsAreStale(
   lockText: unknown,
   manifestText: unknown,
+  dir = 'ios/',
 ): { noPods?: boolean; stale: boolean; reason?: string } {
   const lock = normalize(lockText);
   const manifest = normalize(manifestText);
   if (lock === null && manifest === null) return { noPods: true, stale: false };
   if (lock === null) {
-    return { stale: true, reason: 'ios/Podfile.lock is missing but ios/Pods exists' };
+    return { stale: true, reason: `${dir}Podfile.lock is missing but ${dir}Pods exists` };
   }
   if (manifest === null) {
-    return { stale: true, reason: 'ios/Pods/Manifest.lock is missing (pods have never been installed here)' };
+    return { stale: true, reason: `${dir}Pods/Manifest.lock is missing (pods have never been installed here)` };
   }
   if (lock !== manifest) {
-    return { stale: true, reason: 'ios/Podfile.lock and ios/Pods/Manifest.lock differ' };
+    return { stale: true, reason: `${dir}Podfile.lock and ${dir}Pods/Manifest.lock differ` };
   }
   return { stale: false };
 }
@@ -119,19 +121,21 @@ function normalize(text: unknown) {
   return text.replace(/\r\n/g, '\n').trimEnd();
 }
 
-function podfilePath(root: string) {
-  return join(root, 'ios', 'Podfile');
-}
-
-export function readPodState(root: string): {
+export function readPodState(
+  root: string,
+  iosDir: string = projectIosDir(root).dir,
+): {
   hasPodfile: boolean;
   lockText: string | null;
   manifestText: string | null;
+  dir: string;
 } {
+  const rel = relative(root, iosDir);
   return {
-    hasPodfile: existsSync(podfilePath(root)),
-    lockText: readOrNull(join(root, 'ios', 'Podfile.lock')),
-    manifestText: readOrNull(join(root, 'ios', 'Pods', 'Manifest.lock')),
+    hasPodfile: existsSync(join(iosDir, 'Podfile')),
+    lockText: readOrNull(join(iosDir, 'Podfile.lock')),
+    manifestText: readOrNull(join(iosDir, 'Pods', 'Manifest.lock')),
+    dir: rel ? `${rel}/` : '',
   };
 }
 
@@ -440,20 +444,21 @@ export async function runPodInstall(
     heartbeatMs = HEARTBEAT_INTERVAL_MS,
     estimateMs = null,
     onHeartbeat = (line: string) => console.error(line),
+    iosDir = projectIosDir(root).dir,
   }: {
     spawnFn?: SpawnFn | null;
     now?: () => number;
     heartbeatMs?: number;
     estimateMs?: number | null;
     onHeartbeat?: (line: string) => void;
+    iosDir?: string;
   } = {},
 ): Promise<PodInstallResult> {
-  const iosDir = join(root, 'ios');
   if (!existsSync(iosDir)) {
     return {
       failed: true,
       code: DEPS_ERROR,
-      reason: `No ios/ directory in ${root}, so there is nothing to pod install.`,
+      reason: `No ${relative(root, iosDir) || '.'}/ directory in ${root}, so there is nothing to pod install.`,
       remedy: 'Run `stim ios` on a project with native iOS sources, or let prebuild generate them.',
       lastLines: [] as string[],
     };

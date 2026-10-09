@@ -47,6 +47,7 @@ import {
   resolveEasCliBin,
 } from '../engine/remote-cache.ts';
 import {
+  projectIosDir,
   iosSimSlimProfileSetting,
   remoteAndroidSetting,
   remoteIosSetting,
@@ -159,7 +160,7 @@ function brokenPodLinks(podsRoot: string): string[] {
 }
 
 function hasIosWarmOutput(root: string): boolean {
-  if (existsSync(join(root, 'ios', 'build'))) return true;
+  if (existsSync(join(projectIosDir(root).dir, 'build'))) return true;
   const derivedData = workspaceDerivedData(root);
   if (existsSync(join(derivedData, 'Build', 'Products'))) return true;
   try {
@@ -345,9 +346,10 @@ export function checkMainCheckout(
     }
   }
 
-  const podfileLock = join(mainRoot, 'ios', 'Podfile.lock');
-  const podManifest = join(mainRoot, 'ios', 'Pods', 'Manifest.lock');
-  const podsRoot = join(mainRoot, 'ios', 'Pods');
+  const iosRoot = projectIosDir(mainRoot).dir;
+  const podfileLock = join(iosRoot, 'Podfile.lock');
+  const podManifest = join(iosRoot, 'Pods', 'Manifest.lock');
+  const podsRoot = join(iosRoot, 'Pods');
   if (localIos && existsSync(podfileLock)) {
     let podsState: 'missing' | 'stale' | null = null;
     if (!existsSync(podManifest)) podsState = 'missing';
@@ -359,7 +361,6 @@ export function checkMainCheckout(
       }
     }
     if (podsState) {
-      const iosRoot = join(mainRoot, 'ios');
       const podCommand = `cd ${quotedPath(iosRoot)} && ${podInstallCommand(mainRoot)}`;
       findings.push(
         finding(
@@ -373,7 +374,6 @@ export function checkMainCheckout(
 
     const broken = brokenPods === undefined && existsSync(podsRoot) ? brokenPodLinks(podsRoot) : brokenPods || [];
     if (broken.length) {
-      const iosRoot = join(mainRoot, 'ios');
       const podCommand = `cd ${quotedPath(iosRoot)} && ${podInstallCommand(mainRoot, '--clean-install')}`;
       findings.push(
         finding(
@@ -387,7 +387,7 @@ export function checkMainCheckout(
   }
 
   const coldPlatforms = [
-    localIos && existsSync(join(mainRoot, 'ios')) && !hasIosWarmOutput(mainRoot) ? 'iOS' : null,
+    localIos && existsSync(iosRoot) && !hasIosWarmOutput(mainRoot) ? 'iOS' : null,
     platform !== 'ios' &&
     existsSync(join(mainRoot, 'android')) &&
     !existsSync(join(mainRoot, 'android', 'build')) &&
@@ -956,8 +956,9 @@ export function runDoctor(
   const dynamicConfig = appConfig
     ? null
     : ['app.config.ts', 'app.config.js', 'app.config.mjs'].find((f) => existsSync(join(projectRoot, f))) || null;
-  const podfileProperties = readJsonObject(join(projectRoot, 'ios', 'Podfile.properties.json'));
-  const podfile = read(join('ios', 'Podfile'));
+  const iosDir = projectIosDir(projectRoot).dir;
+  const podfileProperties = readJsonObject(join(iosDir, 'Podfile.properties.json'));
+  const podfile = read(relative(projectRoot, join(iosDir, 'Podfile')));
   const metroConfig = read('metro.config.js') ?? read('metro.config.cjs');
 
   const isExpo = detectIsExpo(projectRoot);
@@ -1337,7 +1338,11 @@ export async function detectFingerprintParity(
 
   const platform =
     selectedPlatform ??
-    (existsSync(join(projectRoot, 'ios')) ? 'ios' : existsSync(join(projectRoot, 'android')) ? 'android' : undefined);
+    (existsSync(projectIosDir(projectRoot).dir)
+      ? 'ios'
+      : existsSync(join(projectRoot, 'android'))
+        ? 'android'
+        : undefined);
 
   let base: string;
   try {

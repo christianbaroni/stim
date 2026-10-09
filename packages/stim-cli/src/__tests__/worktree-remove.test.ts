@@ -1853,6 +1853,19 @@ test('excludePodChurn does not reach beyond the two files pod install rewrites',
   }
 });
 
+test('excludePodChurn restores pod-install churn in an app whose Xcode project is outside ios/', () => {
+  const { lines, restore } = excludePodChurn(
+    [' M packages/rn-tester/Podfile.lock', ' M packages/rn-tester/RNTesterPods.xcodeproj/project.pbxproj'],
+    ['packages/rn-tester'],
+  );
+  expect(restore).toEqual([
+    'packages/rn-tester/Podfile.lock',
+    'packages/rn-tester/RNTesterPods.xcodeproj/project.pbxproj',
+  ]);
+  expect(lines).toEqual([]);
+  expect(excludePodChurn([' M packages/other/Podfile.lock'], ['packages/rn-tester']).restore).toEqual([]);
+});
+
 test('excludePodChurn leaves a path it could not safely name to the refusal', () => {
   const line = ' M apps/my app/ios/Podfile.lock';
   expect(excludePodChurn([line])).toEqual({ lines: [line], restore: [] });

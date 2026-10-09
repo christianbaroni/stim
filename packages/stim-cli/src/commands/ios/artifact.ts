@@ -73,6 +73,7 @@ import {
   xcodeFailureReport,
 } from './support.ts';
 import type { BuildFailureFields, FailArgs, RemoteUploadLike, WaitedForBuild } from './types.ts';
+import { projectIosDir } from '../../workspace/settings.ts';
 
 // xcodebuild cannot target a remote simulator UDID, so remote builds use the generic destination.
 const GENERIC_SIM_DESTINATION = 'generic/platform=iOS Simulator';
@@ -649,7 +650,7 @@ export async function acquireIosArtifact(
     const mutates =
       prebuild === 'generate' ||
       prebuild === 'regenerate' ||
-      podAction(pods, d.podsAreStale(pods.lockText, pods.manifestText)).install;
+      podAction(pods, d.podsAreStale(pods.lockText, pods.manifestText, pods.dir)).install;
     if (mutates && useBuildCache) miss(reasonForMiss([]).reason, true);
   }
 
@@ -833,7 +834,15 @@ export async function acquireIosArtifact(
     const outcome = await offloadBuild({
       choice,
       expectedFingerprint: storeHash,
-      request: { platform: 'ios', runtime, configuration, scheme: buildScheme ?? null, isExpo, optimizations },
+      request: {
+        platform: 'ios',
+        runtime,
+        configuration,
+        scheme: buildScheme ?? null,
+        iosProjectPath: projectIosDir(root).relative,
+        isExpo,
+        optimizations,
+      },
       stagingDir,
       onPhase: (name, msg) => phase(name, remotePhaseText(name, msg, choice.machine)),
       onEnter: (name) => {
@@ -958,7 +967,7 @@ export async function acquireIosArtifact(
       }
 
       const podState = d.readPodState(root);
-      const verdict = d.podsAreStale(podState.lockText, podState.manifestText);
+      const verdict = d.podsAreStale(podState.lockText, podState.manifestText, podState.dir);
       const action = podAction(podState, verdict);
       if (action.install) {
         step('pods');

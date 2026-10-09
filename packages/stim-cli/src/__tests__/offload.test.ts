@@ -592,6 +592,7 @@ describe('strict client routing', () => {
           runtime: RUNTIME,
           configuration: null,
           scheme: null,
+          iosProjectPath: 'ios',
           isExpo: false,
           optimizations: {},
         },

@@ -8,6 +8,7 @@ import type { NdjsonWriter } from '../ndjson.ts';
 import { createLineReader, waitForChild } from '../process-output.ts';
 import { cleanLine } from '../supervisor/server-expo.ts';
 import { HEARTBEAT_INTERVAL_MS, startBuildHeartbeat, tailLines } from './xcode.ts';
+import { projectIosDir } from '../workspace/settings.ts';
 
 export const JS_BUNDLE_NAME = 'main.jsbundle';
 
@@ -28,7 +29,7 @@ export function hermesEnabledFromProperties(text: unknown): boolean {
 
 export function readHermesEnabled(root: string): boolean {
   try {
-    return hermesEnabledFromProperties(readFileSync(join(root, 'ios', 'Podfile.properties.json'), 'utf-8'));
+    return hermesEnabledFromProperties(readFileSync(join(projectIosDir(root).dir, 'Podfile.properties.json'), 'utf-8'));
   } catch {
     return true;
   }
@@ -216,7 +217,7 @@ const IOS_FRAMEWORK_UPDATES_MANIFEST = join(
 export function hermescPath(root: string, { exists = existsSync }: { exists?: (p: string) => boolean } = {}): string {
   const candidates = [
     join(root, 'node_modules', 'hermes-compiler', 'hermesc', 'osx-bin', 'hermesc'),
-    join(root, 'ios', 'Pods', 'hermes-engine', 'destroot', 'bin', 'hermesc'),
+    join(projectIosDir(root).dir, 'Pods', 'hermes-engine', 'destroot', 'bin', 'hermesc'),
     join(root, 'node_modules', 'react-native', 'sdks', 'hermesc', 'osx-bin', 'hermesc'),
   ];
   return candidates.find(exists) ?? candidates[candidates.length - 1]!;

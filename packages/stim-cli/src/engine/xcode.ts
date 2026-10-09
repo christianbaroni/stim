@@ -15,8 +15,7 @@ import { cleanLine } from '../supervisor/server-expo.ts';
 import type { CompilationCacheActivity } from './build-facts.ts';
 import { resolveOptimizations, type Optimizations } from '../optimizations.ts';
 import { resolvePackageJson } from '../workspace/project.ts';
-
-const IOS_DIR = 'ios';
+import { projectIosDir } from '../workspace/settings.ts';
 
 const PREBUILD_REMEDY =
   'Generate it with `npx expo prebuild -p ios` (stim ios does this automatically for an Expo project with no ios/ directory), or commit the native project.';
@@ -27,6 +26,7 @@ interface XcodeProject {
   file?: string;
   name?: string | null;
   dir?: string;
+  appRoot?: string;
   path?: string;
   error?: { code: string; message: string; remedy: string | null };
 }
@@ -61,19 +61,18 @@ export function pickXcodeProject(entries: unknown): { kind: string; flag: string
   return null;
 }
 
-export function discoverXcodeProject(root: string): XcodeProject {
-  const dir = join(root, IOS_DIR);
+export function discoverXcodeProject(root: string, dir: string = projectIosDir(root).dir): XcodeProject {
   let entries;
   try {
     entries = readdirSync(dir);
   } catch {
-    return buildFailure(`No ${IOS_DIR}/ directory in ${root}.`, PREBUILD_REMEDY);
+    return buildFailure(`No ${relative(root, dir) || '.'}/ directory in ${root}.`, PREBUILD_REMEDY);
   }
   const picked = pickXcodeProject(entries);
   if (!picked) {
     return buildFailure(`${dir} contains no .xcworkspace and no .xcodeproj.`, PREBUILD_REMEDY);
   }
-  return { ...picked, dir, path: join(dir, picked.file) };
+  return { ...picked, dir, appRoot: root, path: join(dir, picked.file) };
 }
 
 export function parseSchemeList(text: unknown): { name: string | null; schemes: string[] } {
@@ -161,7 +160,7 @@ export function resolveScheme(
   let scheme = pickScheme(listing.schemes, listing.name || project.name);
   if (!scheme && project.dir) {
     try {
-      const app = JSON.parse(readFileSync(join(project.dir, '..', 'app.json'), 'utf8'));
+      const app = JSON.parse(readFileSync(join(project.appRoot ?? join(project.dir, '..'), 'app.json'), 'utf8'));
       scheme = pickScheme(listing.schemes, app?.name);
     } catch {}
   }
@@ -207,9 +206,12 @@ export function ccacheEnabled(podfileProperties: unknown): boolean {
   return (podfileProperties as Record<string, unknown>)['apple.ccacheEnabled'] === 'true';
 }
 
-export function readPodfileProperties(root: string): Record<string, unknown> | null {
+export function readPodfileProperties(
+  root: string,
+  iosDir: string = projectIosDir(root).dir,
+): Record<string, unknown> | null {
   try {
-    const parsed: unknown = JSON.parse(readFileSync(join(root, IOS_DIR, 'Podfile.properties.json'), 'utf-8'));
+    const parsed: unknown = JSON.parse(readFileSync(join(iosDir, 'Podfile.properties.json'), 'utf-8'));
     return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
   } catch {
     return null;
@@ -330,6 +332,7 @@ export function detectXcodeMajor(exec: Executor | null = null): number | null {
 
 function resolveCompilationCacheSettings({
   root,
+  iosDir,
   derivedDataPath,
   exec = null,
   casPath = sharedCompilationCache(),
@@ -337,6 +340,7 @@ function resolveCompilationCacheSettings({
   onNote = (line: string) => console.error(line),
 }: {
   root: string;
+  iosDir: string;
   derivedDataPath: string;
   exec?: Executor | null;
   casPath?: string;
@@ -344,7 +348,7 @@ function resolveCompilationCacheSettings({
   onNote?: (line: string) => void;
 }): string[] {
   const xcodeMajor = detectXcodeMajor(exec);
-  const ccache = ccacheEnabled(readPodfileProperties(root));
+  const ccache = ccacheEnabled(readPodfileProperties(root, iosDir));
   const probe =
     xcodeMajor !== null &&
     xcodeMajor >= COMPILATION_CACHE_MIN_XCODE &&
@@ -679,6 +683,7 @@ export function compilationCacheActivityLine(activity: CompilationCacheActivity)
 
 export async function buildIos({
   root,
+  iosDir = projectIosDir(root).dir,
   udid = null,
   logWriter,
   project = null,
@@ -699,6 +704,7 @@ export async function buildIos({
   onNote = (line: string) => console.error(line),
 }: {
   root: string;
+  iosDir?: string;
   udid?: string | null;
   logWriter: NdjsonWriter;
   project?: XcodeProject | null;
@@ -744,7 +750,7 @@ export async function buildIos({
 
   let target: XcodeProject | null = project;
   if (!target) {
-    const discovered = discoverXcodeProject(root);
+    const discovered = discoverXcodeProject(root, iosDir);
     if (discovered.error) {
       reportError(discovered.error.message, discovered.error.remedy);
       return failedResult({
@@ -770,7 +776,7 @@ export async function buildIos({
 
   const cacheSettings =
     compilationCache === undefined
-      ? resolveCompilationCacheSettings({ root, derivedDataPath: dd, exec: executor, onNote, optimizations })
+      ? resolveCompilationCacheSettings({ root, iosDir, derivedDataPath: dd, exec: executor, onNote, optimizations })
       : compilationCache || [];
   // Xcode forces ONLY_ACTIVE_ARCH=NO for a generic destination; only an explicit ARCHS narrows the build.
   const buildSettings = arch ? [...cacheSettings, `ARCHS=${arch}`, 'ONLY_ACTIVE_ARCH=YES'] : cacheSettings;

@@ -3,14 +3,14 @@ import { join } from 'node:path';
 import { MODE_BARE, MODE_EXPO } from '../supervisor/state.ts';
 import type { ServerStarter } from '../supervisor/types.ts';
 import {
-  declaresAppDependency,
+  appProjectProblem,
   detectIsExpo,
   isPackageResolvable,
   readAppConfigText,
   readAppJson,
   readPackageJson,
 } from '../workspace/project.ts';
-import { settingValueAt, webSettings, type SettingsObject } from '../workspace/settings.ts';
+import { projectIosDir, settingValueAt, webSettings, type SettingsObject } from '../workspace/settings.ts';
 
 type ProjectPlatform = 'ios' | 'android' | 'macos' | 'web';
 
@@ -47,11 +47,11 @@ const reactNative: NativeProjectIntegration = {
   mode: MODE_BARE,
   loadDevServer: async () => (await import('../supervisor/server-bare.ts')).startBareServer,
   platforms(root) {
-    if (!declaresAppDependency(readPackageJson(root))) return [];
+    if (appProjectProblem(root) !== null) return [];
     const platforms: ProjectPlatform[] = [];
     let ios: string[] = [];
     try {
-      ios = readdirSync(join(root, 'ios'));
+      ios = readdirSync(projectIosDir(root).dir);
     } catch {}
     if (ios.some((name) => name.endsWith('.xcodeproj') || name.endsWith('.xcworkspace'))) platforms.push('ios');
     if (

@@ -4,6 +4,7 @@ import { type ProjectRecord, loadConfig, findEnclosingWorktreeRoot, getProject, 
 import { findProjectRoot } from '@stim-cli/core/state';
 export { findProjectRoot } from '@stim-cli/core/state';
 import { repoRoot } from './worktree.ts';
+import { projectIosDir } from './settings.ts';
 
 interface PackageJson {
   scripts?: Record<string, unknown>;
@@ -245,7 +246,7 @@ function looksLikeExpoConfig(appJson: AnyJson | null): boolean {
 }
 
 function podfileUsesExpoModules(projectRoot: string): boolean {
-  const p = join(projectRoot, 'ios', 'Podfile');
+  const p = join(projectIosDir(projectRoot).dir, 'Podfile');
   if (!existsSync(p)) return false;
   try {
     return /^[^#\n]*use_expo_modules!/m.test(readFileSync(p, 'utf-8'));
