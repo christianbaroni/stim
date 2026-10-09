@@ -39,7 +39,7 @@ import {
 } from '../../engine/app-install.ts';
 import { appReadinessMessage, formatDuration, launchErrorReport, phaseLine, stepTimer } from '../../command-output.ts';
 import { launchErrorPreview } from '../../diagnostics/launch-error-preview.ts';
-import { MODE_BARE, MODE_EXPO, writeWorkspaceLaunch } from '../../supervisor/state.ts';
+import { writeWorkspaceLaunch, workspaceDevServerMode } from '../../supervisor/state.ts';
 import type {
   VerifyLaunchResultLike,
   RemoteUploadLike,
@@ -187,7 +187,7 @@ async function verifyAndroidRun({
         since: launchedAt,
         metroPort,
         platform: 'android',
-        mode: isExpo ? MODE_EXPO : MODE_BARE,
+        mode: workspaceDevServerMode(root, isExpo),
         readNativeCrashes,
         processAlive: () => {
           const pid = androidAppProcess(serial, androidPackage);
@@ -312,7 +312,7 @@ async function verifyAndroidRun({
     component,
     devClientUrl: scheme ? androidDevClientUrl(scheme, metroPort ?? DEFAULT_METRO_PORT, physical) : null,
     devClient: Boolean(scheme),
-    mode: isExpo ? MODE_EXPO : MODE_BARE,
+    mode: workspaceDevServerMode(root, isExpo),
   }))
     phase('', chalk.yellow(line));
   return { state: LAUNCH_UNVERIFIED };
