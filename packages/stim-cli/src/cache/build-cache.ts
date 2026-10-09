@@ -1,5 +1,5 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs';
-import { join, relative } from 'path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from 'fs';
+import { join, posix, relative, sep } from 'path';
 import { isDeepStrictEqual } from 'util';
 import * as expoFingerprint from '@expo/fingerprint';
 import type { Fingerprint, FingerprintSource, Options as FingerprintOptions } from '@expo/fingerprint';
@@ -129,25 +129,32 @@ const ANDROID_ROOT_SOURCES = [
   'gradle',
 ];
 
-export function androidProjectFingerprintSources(
+export function androidProjectFingerprintOptions(
   projectRoot: string,
-  layout: Pick<AndroidLayout, 'gradleRoot' | 'moduleDir' | 'custom'>,
+  layout: Pick<AndroidLayout, 'gradleRoot' | 'gradleRootRelative' | 'module' | 'moduleDir' | 'custom'>,
   exists: (path: string) => boolean = existsSync,
-): NonNullable<FingerprintOptions['extraSources']> {
-  if (!layout.custom) return [];
+): Pick<FingerprintOptions, 'extraSources' | 'ignorePaths'> {
+  if (!layout.custom) return {};
   const reasons = ['android.gradleRoot'];
-  const sources: NonNullable<FingerprintOptions['extraSources']> = ANDROID_ROOT_SOURCES.filter((name) =>
+  const extraSources: NonNullable<FingerprintOptions['extraSources']> = ANDROID_ROOT_SOURCES.filter((name) =>
     exists(join(layout.gradleRoot, name)),
   ).map((name) => ({
     type: name === 'gradle' ? 'dir' : 'file',
-    filePath: relative(projectRoot, join(layout.gradleRoot, name)),
+    filePath: posix.join(layout.gradleRootRelative, name),
     reasons,
   }));
-  const moduleRel = relative(projectRoot, layout.moduleDir);
-  if (moduleRel !== 'android' && !moduleRel.startsWith('android/')) {
-    sources.push({ type: 'dir', filePath: moduleRel, reasons: ['android.module'] });
-  }
-  return sources;
+  let appRoot = projectRoot;
+  try {
+    appRoot = realpathSync(projectRoot);
+  } catch {}
+  const fromApp = relative(appRoot, layout.moduleDir).split(sep).join('/');
+  if (fromApp === 'android' || fromApp.startsWith('android/')) return { extraSources };
+  const moduleRel = posix.join(layout.gradleRootRelative, ...layout.module.split(':').filter(Boolean));
+  extraSources.push({ type: 'dir', filePath: moduleRel, reasons: ['android.module'] });
+  return {
+    extraSources,
+    ignorePaths: ['build', '.cxx', '.gradle'].map((dir) => `${moduleRel}/${dir}/**/*`),
+  };
 }
 
 export async function fingerprintProject(
@@ -175,7 +182,7 @@ export async function fingerprintProject(
     platform === 'ios'
       ? iosProjectFingerprintOptions(projectRoot, iosProjectPath)
       : androidLayout?.custom
-        ? { extraSources: androidProjectFingerprintSources(projectRoot, androidLayout) }
+        ? androidProjectFingerprintOptions(projectRoot, androidLayout)
         : {};
   if (ios.extraSources) {
     // An explicit extraSources replaces fingerprint.config.js's list in @expo/fingerprint, so keep the project's own.

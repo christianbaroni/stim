@@ -624,7 +624,7 @@ async function compileAndroid(
           buildCache: options.gradleBuildCache,
           pch: options.pch,
           compilerCacheDisabled: options.compilerCache === 'none',
-          ccache: options.compilerCache === 'ccache' ? resolveCcache({ root, onNote }) : null,
+          ccache: options.compilerCache === 'ccache' ? resolveCcache({ root, layout, onNote }) : null,
           onHeartbeat: onNote,
           onNote,
         },

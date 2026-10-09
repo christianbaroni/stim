@@ -378,7 +378,7 @@ const INVALID_IOS_PROJECT_DIR = '\0invalid ios.projectPath';
 
 export const DEFAULT_ANDROID_GRADLE_ROOT = 'android';
 export const DEFAULT_ANDROID_MODULE = ':app';
-const ANDROID_MODULE = /^(:[A-Za-z0-9._-]+)+$/;
+const ANDROID_MODULE = /^(:(?!\.\.?(?::|$))[A-Za-z0-9._-]+)+$/;
 
 export interface AndroidLayout {
   gradleRoot: string;
@@ -436,11 +436,19 @@ export function androidLayoutSetting(settings: unknown, appRoot: string, bound: 
     if (pathEscapesRoot(limit, gradleRoot)) throw new Error(`it resolves outside ${limit}`);
     if (!statSync(gradleRoot).isDirectory()) throw new Error('it is not a directory');
     if (!hasGradleScript(gradleRoot, 'settings')) throw new Error('it holds no settings.gradle or settings.gradle.kts');
-    const moduleDir = join(gradleRoot, ...module.split(':').filter(Boolean));
-    if (!hasGradleScript(moduleDir, 'build')) {
-      throw new Error(`module ${module} has no build.gradle or build.gradle.kts at ${moduleDir}`);
+    const mapped = join(gradleRoot, ...module.split(':').filter(Boolean));
+    if (!hasGradleScript(mapped, 'build')) {
+      throw new Error(`module ${module} has no build.gradle or build.gradle.kts at ${mapped}`);
     }
-    return { gradleRoot, gradleRootRelative: relative(app, gradleRoot) || '.', module, moduleDir, custom: true };
+    const moduleDir = realpathSync(mapped);
+    if (pathEscapesRoot(limit, moduleDir)) throw new Error(`module ${module} resolves outside ${limit}`);
+    return {
+      gradleRoot,
+      gradleRootRelative: relative(app, gradleRoot).split(sep).join('/') || '.',
+      module,
+      moduleDir,
+      custom: true,
+    };
   } catch (error) {
     throw new Error(`Could not use android.gradleRoot ${rawRoot}: ${String((error as Error)?.message || error)}`, {
       cause: error,

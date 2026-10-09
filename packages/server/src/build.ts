@@ -124,8 +124,8 @@ const gb = (bytes: number): string => (bytes / 1024 ** 3).toFixed(1);
 const optional = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 const GRADLE_NAME = /^[A-Za-z0-9_-]{1,100}$/;
-const GRADLE_ROOT = /^[A-Za-z0-9._/-]{1,200}$/;
-const GRADLE_MODULE = /^(:[A-Za-z0-9._-]+){1,20}$/;
+const GRADLE_ROOT = /^[A-Za-z0-9._/ -]{1,200}$/;
+const GRADLE_MODULE = /^(:(?!\.\.?(?::|$))[A-Za-z0-9._-]+){1,20}$/;
 
 /** The Gradle choices of an Android `build.start`, or null when they are malformed. */
 function androidOptions(value: unknown): BuildAndroidOptions | null {

@@ -74,8 +74,7 @@ export function discoverAndroidProject(
       failed: true,
       code: BUILD_ERROR,
       reason: `${gradlew} does not exist, so there is no gradle wrapper to build with.`,
-      remedy:
-        'Restore the wrapper (`gradle wrapper` in android/, or regenerate the project with `npx expo prebuild -p android --clean`).',
+      remedy: `Restore the wrapper (\`gradle wrapper\` in ${relative(root, dir) || '.'}/, or regenerate the project with \`npx expo prebuild -p android --clean\`).`,
     };
   }
   return { androidDir: dir, gradlew };
@@ -413,7 +412,7 @@ export function productFlavorRefusal({
   const variants = combinations.map((combination) => variantNameOf(combination.concat('debug')));
   return {
     code: 'STIM_BAD_ARG',
-    reason: `android/app/build.gradle declares ${count} product flavors, so \`./gradlew ${ASSEMBLE_TASK}\` builds an APK for each of them and nothing says which flavor to install.`,
+    reason: `The app module's build.gradle declares ${count} product flavors, so \`./gradlew ${ASSEMBLE_TASK}\` builds an APK for each of them and nothing says which flavor to install.`,
     remedy: `Pass \`--variant ${variants[0]}\` or set the android.variant setting -- e.g. {"android": {"variant": "${variants[0]}"}} in .stim.json. The debug variants are: ${variants.join(', ')}.`,
   };
 }

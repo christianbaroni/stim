@@ -36,11 +36,15 @@ export function hermesEnabledFromGradleProperties(text: unknown): boolean {
 }
 
 export function readAndroidHermesEnabled(root: string): boolean {
-  const { gradleRoot, moduleDir } = projectAndroidLayout(root);
-  for (const dir of [moduleDir, gradleRoot]) {
+  const { gradleRoot, moduleDir, custom } = projectAndroidLayout(root);
+  for (const dir of custom ? [moduleDir, gradleRoot] : [gradleRoot]) {
+    let text: string;
     try {
-      return hermesEnabledFromGradleProperties(readFileSync(join(dir, 'gradle.properties'), 'utf-8'));
-    } catch {}
+      text = readFileSync(join(dir, 'gradle.properties'), 'utf-8');
+    } catch {
+      continue;
+    }
+    if (/^\s*hermesEnabled\s*[=:]/m.test(text)) return hermesEnabledFromGradleProperties(text);
   }
   return true;
 }

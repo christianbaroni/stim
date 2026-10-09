@@ -223,7 +223,11 @@ export const SETTINGS: readonly SettingDefinition[] = [
   },
   {
     key: 'android.module',
-    type: { kind: 'string', pattern: '^(:[A-Za-z0-9._-]+)+$', patternHelp: 'a Gradle project path such as :app' },
+    type: {
+      kind: 'string',
+      pattern: '^(:(?!\\.\\.?(?::|$))[A-Za-z0-9._-]+)+$',
+      patternHelp: 'a Gradle project path such as :app',
+    },
     scopes: ['workspace', 'committed'],
     default: ':app',
     description: "The app's Gradle project path, such as :app",

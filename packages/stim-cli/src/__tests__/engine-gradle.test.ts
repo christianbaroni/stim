@@ -1101,7 +1101,7 @@ describe('productFlavorRefusal', () => {
     assert(refusal);
     expect(refusal.code).toBe('STIM_BAD_ARG');
     expect(refusal.reason).toMatch(/2 product flavors/);
-    expect(refusal.reason).toMatch(/android\/app\/build\.gradle/);
+    expect(refusal.reason).toMatch(/build\.gradle declares/);
     expect(refusal.remedy).toMatch(/productionDebug, previewDebug/);
   });
 

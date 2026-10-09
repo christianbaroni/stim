@@ -717,6 +717,9 @@ describe('androidLayoutSetting', () => {
       /has no build\.gradle/,
     );
     expect(androidLayoutSettingError({ android: { module: 'app' } }, app, repo)).toMatch(/Gradle project path/);
+    expect(
+      androidLayoutSettingError({ android: { gradleRoot: '../..', module: ':..:..:outside' } }, app, repo),
+    ).toMatch(/Gradle project path/);
   });
 });
 

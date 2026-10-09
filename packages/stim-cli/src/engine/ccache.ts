@@ -8,7 +8,7 @@ import { getExecutor } from '../exec.ts';
 import { loadConfig, type Config } from '../workspace/config.ts';
 import { sharedCcache, workspaceLogsDir } from '../workspace/paths.ts';
 import type { CcacheActivity } from './build-facts.ts';
-import { projectAndroidLayout } from '../workspace/settings.ts';
+import { projectAndroidLayout, type AndroidLayout } from '../workspace/settings.ts';
 
 export const CCACHE_MAX_SIZE = '5G';
 
@@ -156,11 +156,13 @@ function canonical(root: string): string {
 
 export function resolveCcache({
   root,
+  layout = projectAndroidLayout(root),
   dir = sharedCcache(),
   lookup = lookupCcache,
   onNote = (line: string) => console.error(line),
 }: {
   root: string;
+  layout?: AndroidLayout;
   dir?: string;
   lookup?: () => string | null;
   onNote?: (line: string) => void;
@@ -171,7 +173,7 @@ export function resolveCcache({
     return null;
   }
 
-  const { moduleDir } = projectAndroidLayout(root);
+  const { moduleDir } = layout;
   const declared = projectCmakeLauncher(
     readOrNull(join(moduleDir, 'build.gradle')) ?? readOrNull(join(moduleDir, 'build.gradle.kts')),
   );
