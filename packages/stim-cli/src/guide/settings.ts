@@ -108,8 +108,10 @@ KEYS STIM READS
                         its name, which otherwise refuses with
                         STIM_NO_SCHEME. The \`--scheme\` flag overrides it
                         per invocation; an \`--eas-profile\` build reads only
-                        the flag. Part of the cache key, like the flag.
-                        Workspace or committed scope.
+                        the flag. Part of the cache key, like the flag, so
+                        it also skips the older Expo buildCacheProvider tier,
+                        which may key only on the fingerprint. Workspace or
+                        committed scope.
   ios.configuration     e.g. "Release" -- the Xcode configuration to build
                         (simulator only). Committing
                         { "ios": { "configuration": "Release" } } makes every

@@ -109,7 +109,6 @@ export {
   resolveConfiguration,
   resolveDeviceType,
   resolveRuntime,
-  resolveSchemeSelection,
   isReleaseConfiguration,
   podAction,
 } from './ios/support.ts';

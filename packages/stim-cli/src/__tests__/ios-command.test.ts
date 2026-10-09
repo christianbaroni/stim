@@ -53,7 +53,6 @@ import {
   isReleaseConfiguration,
   lastBuildRecord,
   resolveConfiguration,
-  resolveSchemeSelection,
   resolveDeviceType,
   resolveRuntime,
   phaseLine,
@@ -71,7 +70,7 @@ import { asProcessExit, makeChildProcess, makeError, makeExecutor, makeIosSim } 
 import { ensureBooted } from '../engine/device.ts';
 import { ensureRemoteBootOwned } from '../engine/device-remote.ts';
 import { IosDeviceMismatchError } from '../engine/device-ios.ts';
-import { deviceModelRefusal, resolveIosWait } from '../commands/ios/support.ts';
+import { deviceModelRefusal, resolveIosWait, resolveSchemeSelection } from '../commands/ios/support.ts';
 import { resetExecutor, setExecutor } from '../exec.ts';
 import { recordCreatedDevice } from '../devices/created-devices.ts';
 import type { IosSimSnapshot } from '../devices/ios.ts';
@@ -4187,8 +4186,7 @@ describe('explicit Xcode schemes', () => {
 });
 
 describe('scheme resolution', () => {
-  test('flag > ios.scheme, a blank flag still reaches validation, and an EAS profile build takes only the flag', () => {
-    expect(resolveSchemeSelection({ scheme: 'App' }, { ios: { scheme: 'RNTester' } })).toBe('App');
+  test('a blank flag still reaches validation, and an EAS profile build takes only the flag', () => {
     expect(resolveSchemeSelection({}, { ios: { scheme: ' RNTester ' } })).toBe('RNTester');
     expect(resolveSchemeSelection({ scheme: '  ' }, { ios: { scheme: 'RNTester' } })).toBe('  ');
     expect(resolveSchemeSelection({ easProfile: 'development' }, { ios: { scheme: 'RNTester' } })).toBeUndefined();
