@@ -19,6 +19,7 @@ import { withDirLock } from '../dir-lock.ts';
 import { isJsonObject, readJsonFile } from '@stim-cli/core/state';
 import type { Optimizations } from '../optimizations.ts';
 import { ensureWorkspaceStorage } from '../workspace/paths.ts';
+import { projectAndroidLayout } from '../workspace/settings.ts';
 
 interface AndroidCasToolchain {
   clang: string;
@@ -57,6 +58,11 @@ function directory(path: string): boolean {
   } catch {
     return false;
   }
+}
+
+function casSourceRoot(root: string): string {
+  const layout = projectAndroidLayout(root);
+  return layout.custom ? layout.gradleRoot : root;
 }
 
 export interface AndroidCasSetup {
@@ -177,7 +183,7 @@ export function resolveAndroidCas(root: string, env: NodeJS.ProcessEnv = process
     initScript: scripts[0]!,
     env: {
       STIM_ANDROID_CAS_CONTEXT: context,
-      STIM_ANDROID_CAS_SOURCE_ROOT: realpathSync(root),
+      STIM_ANDROID_CAS_SOURCE_ROOT: realpathSync(casSourceRoot(root)),
       STIM_ANDROID_CAS_STATE: state,
       STIM_ANDROID_CAS_NDK: toolchain.ndk,
       STIM_ANDROID_CAS_NDK_VERSION: ndkVersion,

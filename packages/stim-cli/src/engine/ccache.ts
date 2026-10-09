@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import chalk from 'chalk';
 import { phaseLine } from '../command-output.ts';
 import { machineNumber } from '../budget.ts';
@@ -8,6 +8,7 @@ import { getExecutor } from '../exec.ts';
 import { loadConfig, type Config } from '../workspace/config.ts';
 import { sharedCcache, workspaceLogsDir } from '../workspace/paths.ts';
 import type { CcacheActivity } from './build-facts.ts';
+import { projectAndroidLayout } from '../workspace/settings.ts';
 
 export const CCACHE_MAX_SIZE = '5G';
 
@@ -170,9 +171,14 @@ export function resolveCcache({
     return null;
   }
 
-  const declared = projectCmakeLauncher(readOrNull(join(root, 'android', 'app', 'build.gradle')));
+  const { moduleDir } = projectAndroidLayout(root);
+  const declared = projectCmakeLauncher(
+    readOrNull(join(moduleDir, 'build.gradle')) ?? readOrNull(join(moduleDir, 'build.gradle.kts')),
+  );
   if (declared) {
-    onNote(chalk.dim(phaseLine('cache', `ccache off (android/app/build.gradle sets ${declared} itself)`)));
+    onNote(
+      chalk.dim(phaseLine('cache', `ccache off (${relative(root, moduleDir)}/build.gradle sets ${declared} itself)`)),
+    );
     return null;
   }
 

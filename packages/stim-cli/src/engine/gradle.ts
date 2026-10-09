@@ -16,6 +16,7 @@ import { CCACHE_UNAVAILABLE, type CcacheSetup, readCcacheActivity } from './ccac
 import { HEARTBEAT_INTERVAL_MS, startBuildHeartbeat } from './xcode.ts';
 import type { CcacheActivity } from './build-facts.ts';
 import type { AndroidCasSetup } from './android-cas.ts';
+import { projectAndroidLayout, type AndroidLayout } from '../workspace/settings.ts';
 
 export const BUILD_ERROR = 'STIM_BUILD_FAILED';
 
@@ -27,44 +28,47 @@ type AndroidProjectResult =
 
 export const ASSEMBLE_TASK = 'assembleDebug';
 
-export function assembleTaskFor(variant?: string | null): string {
+export function assembleTaskFor(variant?: string | null, module: string | null = null): string {
   const name = typeof variant === 'string' ? variant.trim() : '';
-  if (!name) return ASSEMBLE_TASK;
-  return `assemble${name[0]!.toUpperCase()}${name.slice(1)}`;
+  const task = name ? `assemble${name[0]!.toUpperCase()}${name.slice(1)}` : ASSEMBLE_TASK;
+  return module ? `${module}:${task}` : task;
 }
 
 const LAST_LINES = 20;
 
 const TRANSCRIPT_LINES = 2000;
 
-function androidDir(root: string) {
-  return join(root, 'android');
+function androidDir(root: string, layout: AndroidLayout = projectAndroidLayout(root)) {
+  return layout.gradleRoot;
 }
 
-export function gradlewPath(root: string): string {
-  return join(androidDir(root), process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
+export function gradlewPath(root: string, layout: AndroidLayout = projectAndroidLayout(root)): string {
+  return join(androidDir(root, layout), process.platform === 'win32' ? 'gradlew.bat' : 'gradlew');
 }
 
-export function apkOutputsDir(root: string): string {
-  return join(androidDir(root), 'app', 'build', 'outputs', 'apk');
+export function apkOutputsDir(root: string, layout: AndroidLayout = projectAndroidLayout(root)): string {
+  return join(layout.moduleDir, 'build', 'outputs', 'apk');
 }
 
-export function debugApkDir(root: string): string {
-  return join(apkOutputsDir(root), 'debug');
+export function debugApkDir(root: string, layout: AndroidLayout = projectAndroidLayout(root)): string {
+  return join(apkOutputsDir(root, layout), 'debug');
 }
 
-export function discoverAndroidProject(root: string): AndroidProjectResult {
-  const dir = androidDir(root);
+export function discoverAndroidProject(
+  root: string,
+  layout: AndroidLayout = projectAndroidLayout(root),
+): AndroidProjectResult {
+  const dir = androidDir(root, layout);
   if (!existsSync(dir)) {
     return {
       failed: true,
       code: BUILD_ERROR,
-      reason: `No android/ directory in ${root}.`,
+      reason: `No ${relative(root, dir) || '.'}/ directory in ${root}.`,
       remedy:
         'Generate it (`npx expo prebuild -p android`, which `stim android` runs itself on an Expo project) or check out the native sources.',
     };
   }
-  const gradlew = gradlewPath(root);
+  const gradlew = gradlewPath(root, layout);
   if (!existsSync(gradlew)) {
     return {
       failed: true,
@@ -177,8 +181,8 @@ function listApkSubdirs(base: string, prefix: string[] = [], depth = 0): string[
   return dirs;
 }
 
-function findVariantApkDir(root: string, variant: string): string | null {
-  const base = apkOutputsDir(root);
+function findVariantApkDir(root: string, variant: string, layout: AndroidLayout): string | null {
+  const base = apkOutputsDir(root, layout);
   const wanted = variant.trim().toLowerCase();
   for (const segments of listApkSubdirs(base)) {
     if (variantNameOf(segments).toLowerCase() === wanted) return join(base, ...segments);
@@ -205,31 +209,36 @@ export interface LocateApkResult {
   candidates?: string[];
 }
 
-export function locateApk(root: string, transcript = '', variant: string | null = null): LocateApkResult {
+export function locateApk(
+  root: string,
+  transcript = '',
+  variant: string | null = null,
+  layout: AndroidLayout = projectAndroidLayout(root),
+): LocateApkResult {
   const fromTranscript = parseApkFromTranscript(transcript);
   if (fromTranscript) {
-    const abs = isAbsolute(fromTranscript) ? fromTranscript : join(androidDir(root), fromTranscript);
+    const abs = isAbsolute(fromTranscript) ? fromTranscript : join(androidDir(root, layout), fromTranscript);
     if (existsSync(abs)) return { apkPath: abs };
   }
 
   if (variant) {
-    const dir = findVariantApkDir(root, variant);
+    const dir = findVariantApkDir(root, variant, layout);
     const apk = dir ? apkInDir(dir) : null;
     return { apkPath: apk };
   }
 
-  const direct = apkInDir(debugApkDir(root));
+  const direct = apkInDir(debugApkDir(root, layout));
   if (direct) return { apkPath: direct };
 
-  const found = findDebugApksUnder(apkOutputsDir(root));
+  const found = findDebugApksUnder(apkOutputsDir(root, layout));
   if (found.length === 1) {
     const apk = found[0]!;
-    const rel = relative(apkOutputsDir(root), apk).split(sep).slice(0, -1);
+    const rel = relative(apkOutputsDir(root, layout), apk).split(sep).slice(0, -1);
     const suggested = variantNameOf(rel);
     return {
       apkPath: apk,
       note:
-        `no APK in ${relative(androidDir(root), debugApkDir(root))}; using ${relative(androidDir(root), apk)}` +
+        `no APK in ${relative(androidDir(root, layout), debugApkDir(root, layout))}; using ${relative(androidDir(root, layout), apk)}` +
         `${suggested ? ` -- set the android.variant setting to "${suggested}" to build this variant explicitly` : ''}`,
     };
   }
@@ -382,8 +391,8 @@ export function parseProductFlavors(source: unknown): ProductFlavors {
   return { known: true, dimensions };
 }
 
-export function readProductFlavors(root: string): ProductFlavors {
-  return parseProductFlavors(readOrNull(join(androidDir(root), 'app', 'build.gradle')));
+export function readProductFlavors(root: string, layout: AndroidLayout = projectAndroidLayout(root)): ProductFlavors {
+  return parseProductFlavors(readOrNull(join(layout.moduleDir, 'build.gradle')));
 }
 
 export function productFlavorRefusal({
@@ -442,7 +451,14 @@ export async function buildAndroid(
     logWriter,
     variant = null,
     abi = null,
-  }: { root: string; logWriter?: NdjsonWriter | null; variant?: string | null; abi?: string | null },
+    layout = projectAndroidLayout(root),
+  }: {
+    root: string;
+    logWriter?: NdjsonWriter | null;
+    variant?: string | null;
+    abi?: string | null;
+    layout?: AndroidLayout;
+  },
   {
     spawnFn = null,
     now = Date.now,
@@ -473,7 +489,7 @@ export async function buildAndroid(
     platform?: NodeJS.Platform;
   } = {},
 ): Promise<BuildAndroidResult> {
-  const project = discoverAndroidProject(root);
+  const project = discoverAndroidProject(root, layout);
   if (project.failed) {
     return {
       ok: false,
@@ -512,7 +528,7 @@ export async function buildAndroid(
     };
 
   const spawn: SpawnFn = spawnFn || ((cmd, args, opts) => getExecutor().spawn(cmd, args, opts));
-  const task = assembleTaskFor(variant);
+  const task = assembleTaskFor(variant, layout.custom ? layout.module : null);
   const args = gradleArgs(task, { buildCache, abi });
   if (cas) {
     args.push('--init-script', cas.initScript);
@@ -637,16 +653,16 @@ export async function buildAndroid(
     };
   }
 
-  const located = locateApk(root, transcript, variant);
+  const located = locateApk(root, transcript, variant, layout);
   if (!located.apkPath && located.candidates?.length) {
     return {
       ok: false,
       code: BUILD_ERROR,
-      reason: `\`./gradlew ${task}\` left ${located.candidates.length} debug APKs under ${apkOutputsDir(root)}, and nothing says which flavor to install.`,
-      remedy: `Set the android.variant setting to the variant to install -- e.g. {"android": {"variant": "${variantNameOf(relative(apkOutputsDir(root), located.candidates[0]!).split(sep).slice(0, -1))}"}} in .stim.json.`,
+      reason: `\`./gradlew ${task}\` left ${located.candidates.length} debug APKs under ${apkOutputsDir(root, layout)}, and nothing says which flavor to install.`,
+      remedy: `Set the android.variant setting to the variant to install -- e.g. {"android": {"variant": "${variantNameOf(relative(apkOutputsDir(root, layout), located.candidates[0]!).split(sep).slice(0, -1))}"}} in .stim.json.`,
       diagnostics: [],
       truncated: 0,
-      lastLines: located.candidates.map((c) => relative(androidDir(root), c)),
+      lastLines: located.candidates.map((c) => relative(androidDir(root, layout), c)),
       durationMs,
       ccache: ccacheActivity,
     };
@@ -656,11 +672,11 @@ export async function buildAndroid(
       ok: false,
       code: BUILD_ERROR,
       reason: variant
-        ? `\`./gradlew ${task}\` succeeded but produced no APK under ${apkOutputsDir(root)} for variant "${variant}".`
-        : `\`./gradlew ${task}\` succeeded but produced no APK in ${debugApkDir(root)}.`,
+        ? `\`./gradlew ${task}\` succeeded but produced no APK under ${apkOutputsDir(root, layout)} for variant "${variant}".`
+        : `\`./gradlew ${task}\` succeeded but produced no APK in ${debugApkDir(root, layout)}.`,
       remedy: variant
-        ? `Check that the android.variant setting ("${variant}") names a real variant (\`./gradlew :app:tasks\` lists the assemble tasks).`
-        : `Check that ${task} builds the app module (\`./gradlew :app:${task}\` in android/) and that no flavour redirects the output.`,
+        ? `Check that the android.variant setting ("${variant}") names a real variant (\`./gradlew ${layout.module}:tasks\` lists the assemble tasks).`
+        : `Check that ${task} builds the app module (\`./gradlew ${layout.custom ? task : `:app:${task}`}\` in ${relative(root, project.androidDir) || '.'}/) and that no flavour redirects the output.`,
       diagnostics: [],
       truncated: 0,
       lastLines: tail.slice(),

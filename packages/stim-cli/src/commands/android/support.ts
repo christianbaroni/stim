@@ -32,6 +32,7 @@ import { getExecutor } from '../../exec.ts';
 import { devClientScheme as configuredDevClientScheme, pickDevClientScheme } from '../dev-client.ts';
 import { selectFromPool } from '../../engine/device-pool.ts';
 import type { FailExtra } from './types.ts';
+import { projectAndroidLayout } from '../../workspace/settings.ts';
 
 export const PLATFORM = 'android';
 
@@ -465,6 +466,24 @@ export async function pooledAndroidDevice({
   };
 }
 
+type AndroidRunOptions = {
+  variant?: string;
+  abi?: string;
+  compiler?: string;
+  buildProfile?: string;
+  gradleProject?: string;
+};
+
+export function androidGradleProject(root: string): string | null {
+  const layout = projectAndroidLayout(root);
+  return layout.custom ? `${layout.gradleRootRelative} ${layout.module}` : null;
+}
+
+export function androidJobLayout(root: string): { gradleRoot?: string; module?: string } {
+  const layout = projectAndroidLayout(root);
+  return layout.custom ? { gradleRoot: layout.gradleRootRelative, module: layout.module } : {};
+}
+
 export function androidBuildOptions({
   release,
   physical,
@@ -475,6 +494,7 @@ export function androidBuildOptions({
   buildProfile,
   targetAbiOnly = true,
   hostedAbi = null,
+  gradleProject = null,
 }: {
   release: boolean;
   physical: boolean;
@@ -485,17 +505,19 @@ export function androidBuildOptions({
   buildProfile?: string;
   targetAbiOnly?: boolean;
   hostedAbi?: string | null;
+  gradleProject?: string | null;
 }): {
   abi: string | null;
-  runOptions: { variant?: string; abi?: string; compiler?: string; buildProfile?: string };
-  remoteRunOptions: { variant?: string; abi?: string; compiler?: string; buildProfile?: string } | null;
+  runOptions: AndroidRunOptions;
+  remoteRunOptions: AndroidRunOptions | null;
 } {
   let abi: string | null = targetAbiOnly ? hostedAbi : null;
   if (targetAbiOnly && !release && physical && device.serial) abi = deviceAbi(device.serial);
   if (targetAbiOnly && !release && !physical) abi = androidSystemImageAbi(device.systemImage);
 
-  const runOptions: { variant?: string; abi?: string; compiler?: string; buildProfile?: string } = {};
+  const runOptions: AndroidRunOptions = {};
   if (variant) runOptions.variant = variant;
+  if (gradleProject) runOptions.gradleProject = gradleProject;
   if (abi) runOptions.abi = abi;
   if (compiler) runOptions.compiler = compiler;
   if (buildProfile) runOptions.buildProfile = buildProfile;

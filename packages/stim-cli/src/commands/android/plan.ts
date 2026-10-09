@@ -27,6 +27,8 @@ import { parkedMaxSetting } from '../../devices/sim-pool.ts';
 import type { RemoteDeviceBackend } from '../../engine/device-remote.ts';
 import type { SettingsObject } from '@stim-cli/core/state';
 import {
+  androidLayoutSetting,
+  androidLayoutSettingError,
   androidAvdConfigSettingError,
   androidDataPartitionSizeGbSettingError,
   cacheProviderSettingError,
@@ -183,6 +185,17 @@ function androidCompilerCache({
   return { cas, optimizations: resolved, warning: `Warning: ${message}` };
 }
 
+function androidLayoutError(
+  settings: SettingsObject,
+  root: string,
+  bound: string,
+  isExpo: () => boolean,
+): string | null {
+  const error = androidLayoutSettingError(settings, root, bound);
+  if (error || !androidLayoutSetting(settings, root, bound).custom || !isExpo()) return error;
+  return 'android.gradleRoot and android.module apply to bare React Native apps only: expo prebuild generates and builds android/. Remove them for this Expo app.';
+}
+
 export function resolveAndroidRunPlan(
   {
     settings,
@@ -244,6 +257,8 @@ export function resolveAndroidRunPlan(
       'Set android.dataPartitionSizeGb to a whole number of GiB from 6 through 16384.',
     );
   }
+  const layoutError = androidLayoutError(settings, root, settingsContext.repoRoot ?? root, () => detectExpo(root));
+  if (layoutError) return fail('STIM_BAD_ARG', layoutError, SETTING_SHAPE_REMEDY);
   const avdConfigError = validateAvdConfig(settings, root);
   if (avdConfigError) {
     return fail(

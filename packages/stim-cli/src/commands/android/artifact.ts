@@ -81,7 +81,14 @@ import type { androidDeviceAbi } from '../../devices/android.ts';
 import type { CcacheActivity, WaitedForBuild } from '../../engine/build-facts.ts';
 import type { readWorkspaceState } from '../../workspace/workspace-state.ts';
 import type { AndroidRunPlan } from './plan.ts';
-import { androidBuildOptions, displayPath, NO_FINGERPRINT, PLATFORM } from './support.ts';
+import {
+  androidBuildOptions,
+  androidGradleProject,
+  androidJobLayout,
+  displayPath,
+  NO_FINGERPRINT,
+  PLATFORM,
+} from './support.ts';
 import type { AndroidRecord, AndroidWriter, FailExtra, PrebuildResultLike, RemoteUploadLike } from './types.ts';
 
 const FALLBACK_LINES = 5;
@@ -297,6 +304,7 @@ export async function acquireAndroidArtifact(
     device,
     variant,
     deviceAbi,
+    gradleProject: androidGradleProject(root),
     compiler: cas?.id,
     buildProfile,
     targetAbiOnly: buildPlan.targetAbiOnly,
@@ -726,6 +734,7 @@ export async function acquireAndroidArtifact(
           gradleBuildCache: buildPlan.gradleBuildCache,
           pch: buildPlan.pch,
           compilerCache: buildPlan.compilerCache === 'none' ? 'none' : 'ccache',
+          ...androidJobLayout(root),
         },
       },
       stagingDir,

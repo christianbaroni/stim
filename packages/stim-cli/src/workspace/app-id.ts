@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, type Dirent } from 'fs';
 import { join } from 'path';
 import { readProjectConfig } from '../engine/remote-cache.ts';
 import { readAppConfigText, readAppJson } from './project.ts';
-import { projectIosDir } from './settings.ts';
+import { projectAndroidLayout, projectIosDir } from './settings.ts';
 
 interface AppIds {
   bundleId: string | null;
@@ -95,18 +95,21 @@ function detectBundleIdFromPbxproj(projectRoot: string): string | null {
 }
 
 function detectAndroidPackageFromGradle(projectRoot: string): string | null {
-  const gradle = join(projectRoot, 'android', 'app', 'build.gradle');
-  if (!existsSync(gradle)) return null;
+  const { moduleDir } = projectAndroidLayout(projectRoot);
+  const gradle = [join(moduleDir, 'build.gradle'), join(moduleDir, 'build.gradle.kts')].find((file) =>
+    existsSync(file),
+  );
+  if (!gradle) return null;
   let text: string;
   try {
     text = readFileSync(gradle, 'utf-8');
   } catch {
     return null;
   }
-  const ns = text.match(/namespace\s+["']([^"']+)["']/);
+  const ns = text.match(/namespace\s*=?\s*["']([^"']+)["']/);
   const nsId = ns?.[1];
   if (nsId) return nsId;
-  const app = text.match(/applicationId\s+["']([^"']+)["']/);
+  const app = text.match(/applicationId\s*=?\s*["']([^"']+)["']/);
   const appId = app?.[1];
   if (appId) return appId;
   return null;

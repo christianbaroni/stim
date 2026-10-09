@@ -47,6 +47,7 @@ import {
   resolveEasCliBin,
 } from '../engine/remote-cache.ts';
 import {
+  projectAndroidLayout,
   projectIosDir,
   iosSimSlimProfileSetting,
   remoteAndroidSetting,
@@ -389,9 +390,9 @@ export function checkMainCheckout(
   const coldPlatforms = [
     localIos && existsSync(iosRoot) && !hasIosWarmOutput(mainRoot) ? 'iOS' : null,
     platform !== 'ios' &&
-    existsSync(join(mainRoot, 'android')) &&
-    !existsSync(join(mainRoot, 'android', 'build')) &&
-    !existsSync(join(mainRoot, 'android', 'app', 'build'))
+    hasAndroidProject(mainRoot) &&
+    !existsSync(join(projectAndroidLayout(mainRoot).gradleRoot, 'build')) &&
+    !existsSync(join(projectAndroidLayout(mainRoot).moduleDir, 'build'))
       ? 'Android'
       : null,
   ].filter((coldPlatform): coldPlatform is string => coldPlatform !== null);
@@ -1127,8 +1128,13 @@ export function checkAndroidPathRoom(
   };
 }
 
+function hasAndroidProject(root: string): boolean {
+  const layout = projectAndroidLayout(root);
+  return existsSync(layout.custom ? layout.moduleDir : layout.gradleRoot);
+}
+
 export function checkAndroidSdk(projectRoot: string, platform: DoctorPlatform | undefined): Finding | null {
-  const androidDir = join(projectRoot, 'android');
+  const androidDir = projectAndroidLayout(projectRoot).gradleRoot;
   if (platform === 'ios' || (platform !== 'android' && !existsSync(androidDir))) return null;
   const sdkPath = androidHome();
   const refusal = androidSdkRefusal({
@@ -1153,7 +1159,7 @@ function androidCcacheFindings(
   platform: DoctorPlatform | undefined,
   lookupCcache: (() => boolean) | null,
 ): (Finding | null)[] {
-  if (platform !== 'android' && !existsSync(join(projectRoot, 'android'))) return [];
+  if (platform !== 'android' && !hasAndroidProject(projectRoot)) return [];
   const onPath = lookupCcache ? lookupCcache() : ccacheIsOnPath();
   let cxx: Finding | null;
   try {
@@ -1338,11 +1344,7 @@ export async function detectFingerprintParity(
 
   const platform =
     selectedPlatform ??
-    (existsSync(projectIosDir(projectRoot).dir)
-      ? 'ios'
-      : existsSync(join(projectRoot, 'android'))
-        ? 'android'
-        : undefined);
+    (existsSync(projectIosDir(projectRoot).dir) ? 'ios' : hasAndroidProject(projectRoot) ? 'android' : undefined);
 
   let base: string;
   try {

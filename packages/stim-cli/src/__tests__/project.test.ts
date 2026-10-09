@@ -260,6 +260,28 @@ test('detectAndroidPackage falls back to android/app/build.gradle (namespace)', 
   expect(detectAndroidPackage(BARE_PROJ)).toBe('me.sample');
 });
 
+test('detectAndroidPackage reads a Kotlin DSL namespace from the module android.module names', () => {
+  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'stim-gradle-root-')));
+  try {
+    getExecutor().runFile('git', ['init', '-q', repo]);
+    const app = join(repo, 'packages', 'tester');
+    mkdirSync(join(app, 'android', 'app'), { recursive: true });
+    writeFileSync(join(repo, 'settings.gradle.kts'), '');
+    writeFileSync(join(app, 'package.json'), JSON.stringify({ name: 'tester', dependencies: { 'react-native': '*' } }));
+    writeFileSync(
+      join(app, 'android', 'app', 'build.gradle.kts'),
+      'android {\n  namespace = "com.facebook.react.uiapp"\n}\n',
+    );
+    writeFileSync(
+      join(app, '.stim.json'),
+      JSON.stringify({ android: { gradleRoot: '../..', module: ':packages:tester:android:app' } }),
+    );
+    expect(detectAndroidPackage(app)).toBe('com.facebook.react.uiapp');
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
 describe.skipIf(process.platform === 'win32')(
   'app ids from a dynamic app config (POSIX executable stub; skipped on win32)',
   { timeout: 30_000 },

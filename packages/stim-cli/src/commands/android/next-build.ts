@@ -30,7 +30,7 @@ import { planCachedBuild, planFlagRefusal, planPayload, printPlan, refusePlan } 
 import { planHostedDevice } from '../../device-host/plan-placement.ts';
 import { isPhysicalDeviceRequest } from '../native-runtime.ts';
 import { resolveAndroidRunPlan } from './plan.ts';
-import { androidBuildOptions, NO_DEVICE, NO_FINGERPRINT, PLATFORM } from './support.ts';
+import { androidBuildOptions, androidGradleProject, NO_DEVICE, NO_FINGERPRINT, PLATFORM } from './support.ts';
 
 export interface AndroidPlanOptions {
   slot?: string;
@@ -278,6 +278,7 @@ export async function planAndroid(opts: AndroidPlanOptions, overrides: Partial<A
     buildProfile: build.profile,
     targetAbiOnly: build.targetAbiOnly,
     hostedAbi,
+    gradleProject: androidGradleProject(root),
   });
 
   let fingerprint;

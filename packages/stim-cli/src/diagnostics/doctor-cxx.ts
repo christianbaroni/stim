@@ -4,7 +4,7 @@ import { getExecutor } from '../exec.ts';
 import { readAndroidCasToolchain, resolveAndroidCompilerCache } from '../engine/android-cas.ts';
 import { listBuildLocks } from '../engine/build-lock.ts';
 import { projectCmakeLauncher } from '../engine/ccache.ts';
-import { projectOptimizations } from '../workspace/settings.ts';
+import { projectAndroidLayout, projectOptimizations } from '../workspace/settings.ts';
 
 export interface CxxLauncherState {
   path: string;
@@ -27,7 +27,7 @@ function children(path: string): string[] {
 }
 
 function moduleRoots(root: string): string[] {
-  const modules = [join(root, 'android', 'app')];
+  const modules = [projectAndroidLayout(root).moduleDir];
   const dependencies = join(root, 'node_modules');
   for (const name of children(dependencies)) {
     if (name.startsWith('.')) continue;
@@ -96,7 +96,7 @@ export function repairCxxLauncherState(root: string): CxxRepairResult {
   if (selectedCompilerCache(root) !== 'ccache') return result;
   const ccache = getExecutor().findExecutable('ccache');
   if (!ccache) return result;
-  const appOverrides = declaredLauncher(join(root, 'android', 'app'));
+  const appOverrides = declaredLauncher(projectAndroidLayout(root).moduleDir);
   const states = readCxxLauncherStates(root);
   const targets = states.filter(({ launcher }) => {
     if (!launcher) return true;

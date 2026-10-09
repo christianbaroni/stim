@@ -17,6 +17,7 @@ import {
 } from './asset-manifest.ts';
 import { detectEntryFile, refreshUpdatesManifestFile, UPDATES_MANIFEST_NAME } from './js-swap.ts';
 import { HEARTBEAT_INTERVAL_MS, startBuildHeartbeat, tailLines } from './xcode.ts';
+import { projectAndroidLayout } from '../workspace/settings.ts';
 
 export const ANDROID_BUNDLE_NAME = 'index.android.bundle';
 
@@ -35,11 +36,13 @@ export function hermesEnabledFromGradleProperties(text: unknown): boolean {
 }
 
 export function readAndroidHermesEnabled(root: string): boolean {
-  try {
-    return hermesEnabledFromGradleProperties(readFileSync(join(root, 'android', 'gradle.properties'), 'utf-8'));
-  } catch {
-    return true;
+  const { gradleRoot, moduleDir } = projectAndroidLayout(root);
+  for (const dir of [moduleDir, gradleRoot]) {
+    try {
+      return hermesEnabledFromGradleProperties(readFileSync(join(dir, 'gradle.properties'), 'utf-8'));
+    } catch {}
   }
+  return true;
 }
 
 export function hermescBinDir(platform: string = process.platform): string {
@@ -172,7 +175,7 @@ export function resolveKeystore(root: string, settings: SettingsObject | null | 
       ? isAbsolute(configured.trim())
         ? configured.trim()
         : join(root, configured.trim())
-      : join(root, 'android', 'app', 'debug.keystore');
+      : join(projectAndroidLayout(root).moduleDir, 'debug.keystore');
   return { path, pass: keystorePassArg(bag['keystorePassword']) };
 }
 

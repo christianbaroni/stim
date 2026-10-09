@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, relative } from 'path';
 import { isDeepStrictEqual } from 'util';
 import * as expoFingerprint from '@expo/fingerprint';
 import type { Fingerprint, FingerprintSource, Options as FingerprintOptions } from '@expo/fingerprint';
@@ -10,7 +10,12 @@ import { getExecutor } from '../exec.ts';
 import { register } from './cache-manifest.ts';
 import { ASSET_MANIFEST_FILE, parseAssetManifest, type AssetManifest } from '../engine/asset-manifest.ts';
 import { sharedBuildCache as cacheRoot } from '../workspace/paths.ts';
-import { DEFAULT_IOS_PROJECT_PATH, projectIosDir } from '../workspace/settings.ts';
+import {
+  DEFAULT_IOS_PROJECT_PATH,
+  projectAndroidLayout,
+  projectIosDir,
+  type AndroidLayout,
+} from '../workspace/settings.ts';
 
 export { artifactIn, buildCacheKey } from '@stim-cli/core';
 export { cacheRoot };
@@ -115,16 +120,48 @@ export function iosProjectFingerprintOptions(
   };
 }
 
+const ANDROID_ROOT_SOURCES = [
+  'settings.gradle',
+  'settings.gradle.kts',
+  'build.gradle',
+  'build.gradle.kts',
+  'gradle.properties',
+  'gradle',
+];
+
+export function androidProjectFingerprintSources(
+  projectRoot: string,
+  layout: Pick<AndroidLayout, 'gradleRoot' | 'moduleDir' | 'custom'>,
+  exists: (path: string) => boolean = existsSync,
+): NonNullable<FingerprintOptions['extraSources']> {
+  if (!layout.custom) return [];
+  const reasons = ['android.gradleRoot'];
+  const sources: NonNullable<FingerprintOptions['extraSources']> = ANDROID_ROOT_SOURCES.filter((name) =>
+    exists(join(layout.gradleRoot, name)),
+  ).map((name) => ({
+    type: name === 'gradle' ? 'dir' : 'file',
+    filePath: relative(projectRoot, join(layout.gradleRoot, name)),
+    reasons,
+  }));
+  const moduleRel = relative(projectRoot, layout.moduleDir);
+  if (moduleRel !== 'android' && !moduleRel.startsWith('android/')) {
+    sources.push({ type: 'dir', filePath: moduleRel, reasons: ['android.module'] });
+  }
+  return sources;
+}
+
 export async function fingerprintProject(
   projectRoot: string,
   {
     platform,
     iosProjectPath = platform === 'ios' ? projectIosDir(projectRoot).relative : DEFAULT_IOS_PROJECT_PATH,
+    androidLayout = platform === 'android' ? projectAndroidLayout(projectRoot) : null,
     createFingerprint = expoFingerprint.createFingerprintAsync,
     debug = false,
   }: {
     platform?: string;
     iosProjectPath?: string;
+    androidLayout?: AndroidLayout | null;
     createFingerprint?: typeof expoFingerprint.createFingerprintAsync;
     debug?: boolean;
   } = {},
@@ -134,7 +171,12 @@ export async function fingerprintProject(
       ? { platforms: [platform] as FingerprintOptions['platforms'] }
       : undefined;
   // With DEBUG set, @expo/fingerprint profiles sourcers on stdout unless silent.
-  const ios = platform === 'ios' ? iosProjectFingerprintOptions(projectRoot, iosProjectPath) : {};
+  const ios: Pick<FingerprintOptions, 'extraSources' | 'ignorePaths'> =
+    platform === 'ios'
+      ? iosProjectFingerprintOptions(projectRoot, iosProjectPath)
+      : androidLayout?.custom
+        ? { extraSources: androidProjectFingerprintSources(projectRoot, androidLayout) }
+        : {};
   if (ios.extraSources) {
     // An explicit extraSources replaces fingerprint.config.js's list in @expo/fingerprint, so keep the project's own.
     const config = await loadFingerprintConfig(projectRoot, true);
@@ -397,17 +439,23 @@ export async function refingerprintAfterMutation({
   platform,
   previousHash,
   iosProjectPath,
+  androidLayout,
   fingerprint = fingerprintProject,
 }: {
   projectRoot: string;
   platform: string;
   previousHash: string;
   iosProjectPath?: string;
+  androidLayout?: AndroidLayout;
   fingerprint?: typeof fingerprintProject;
 }): Promise<(ProjectFingerprint & { moved: boolean }) | null> {
   let computed: ProjectFingerprint | null = null;
   try {
-    computed = await fingerprint(projectRoot, { platform, ...(iosProjectPath ? { iosProjectPath } : {}) });
+    computed = await fingerprint(projectRoot, {
+      platform,
+      ...(iosProjectPath ? { iosProjectPath } : {}),
+      ...(androidLayout ? { androidLayout } : {}),
+    });
   } catch {
     return null;
   }

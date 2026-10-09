@@ -852,6 +852,8 @@ export interface BuildAndroidOptions {
   gradleBuildCache: boolean;
   pch: 'auto' | 'on' | 'off';
   compilerCache: 'ccache' | 'none';
+  gradleRoot?: string | null;
+  module?: string | null;
 }
 
 /**

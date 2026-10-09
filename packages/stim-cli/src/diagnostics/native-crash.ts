@@ -15,6 +15,7 @@ import { readWorkspaceLaunches } from '../supervisor/state.ts';
 import { readWorkspaceState } from '../workspace/workspace-state.ts';
 import { getProject } from '../workspace/config.ts';
 import { deviceLeasePath, fileLeaseIo, parseLease } from '../engine/device-lease.ts';
+import { projectAndroidLayout } from '../workspace/settings.ts';
 
 export const IOS_CRASH_REPORT_RETRY =
   'iOS crash reports can take about a minute or longer to appear. Run `stim logs --errors` again for the native stack.';
@@ -258,8 +259,9 @@ function symbolicateAndroid(record: NdjsonRecord, root: string | undefined, budg
     } catch {}
   };
   if (tools) {
-    for (const directory of ['android/app/src/main/jniLibs', 'android/app/build/intermediates/cxx', 'android/app/.cxx'])
-      visit(join(root, directory), 0);
+    const { moduleDir } = projectAndroidLayout(root);
+    for (const directory of ['src/main/jniLibs', 'build/intermediates/cxx', '.cxx'])
+      visit(join(moduleDir, directory), 0);
     deadline = budget;
     const byId = new Map<string, string | null>();
     for (const [index, [, address, file, suffix]] of frames.entries()) {

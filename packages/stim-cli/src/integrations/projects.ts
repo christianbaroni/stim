@@ -10,7 +10,13 @@ import {
   readAppJson,
   readPackageJson,
 } from '../workspace/project.ts';
-import { projectIosDir, settingValueAt, webSettings, type SettingsObject } from '../workspace/settings.ts';
+import {
+  projectAndroidLayout,
+  projectIosDir,
+  settingValueAt,
+  webSettings,
+  type SettingsObject,
+} from '../workspace/settings.ts';
 
 type ProjectPlatform = 'ios' | 'android' | 'macos' | 'web';
 
@@ -54,10 +60,13 @@ const reactNative: NativeProjectIntegration = {
       ios = readdirSync(projectIosDir(root).dir);
     } catch {}
     if (ios.some((name) => name.endsWith('.xcodeproj') || name.endsWith('.xcworkspace'))) platforms.push('ios');
+    const android = projectAndroidLayout(root);
     if (
-      ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'].some((name) =>
-        existsSync(join(root, 'android', name)),
-      )
+      android.custom
+        ? existsSync(android.moduleDir)
+        : ['build.gradle', 'build.gradle.kts', 'settings.gradle', 'settings.gradle.kts'].some((name) =>
+            existsSync(join(android.gradleRoot, name)),
+          )
     )
       platforms.push('android');
     return platforms;

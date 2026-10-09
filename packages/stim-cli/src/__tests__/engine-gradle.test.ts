@@ -387,6 +387,43 @@ describe('buildAndroid', () => {
     expect(spawned).toBe(false);
   });
 
+  test('a Gradle root outside the app runs its wrapper there with the module-qualified task', async () => {
+    const app = join(root, 'packages', 'rn-tester');
+    const moduleDir = join(app, 'android', 'app');
+    const layout = {
+      gradleRoot: root,
+      gradleRootRelative: '../..',
+      module: ':packages:rn-tester:android:app',
+      moduleDir,
+      custom: true,
+    };
+    const gradlew = gradlewPath(app, layout);
+    writeFileSync(gradlew, '#!/bin/sh\nexit 0\n');
+    chmodSync(gradlew, 0o755);
+    const apk = join(moduleDir, 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
+    const calls: { cmd: string; args: string[]; opts: Record<string, unknown> }[] = [];
+    const result = await buildAndroid(
+      { root: app, layout },
+      {
+        spawnFn: (cmd, args, opts) => {
+          calls.push({ cmd, args, opts });
+          return fakeChild({
+            lines: ['BUILD SUCCESSFUL in 1s'],
+            onExit: () => {
+              mkdirSync(join(apk, '..'), { recursive: true });
+              writeFileSync(apk, 'apk');
+            },
+          });
+        },
+      },
+    );
+    expect(calls[0]?.cmd).toBe(join(root, 'gradlew'));
+    expect(calls[0]?.args[0]).toBe(':packages:rn-tester:android:app:assembleDebug');
+    expect(calls[0]?.opts.cwd).toBe(root);
+    assert(result.ok);
+    expect(result.apkPath).toBe(apk);
+  });
+
   test('runs ./gradlew assembleDebug in android/ and streams every line as it arrives', async () => {
     makeAndroidProject();
     const writer = recordingWriter();
