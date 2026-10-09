@@ -4,7 +4,7 @@ import { type ProjectRecord, loadConfig, findEnclosingWorktreeRoot, getProject, 
 import { findProjectRoot } from '@stim-cli/core/state';
 export { findProjectRoot } from '@stim-cli/core/state';
 import { repoRoot } from './worktree.ts';
-import { projectMetroCommand } from './settings.ts';
+import { projectSetsMetroCommand } from './settings.ts';
 
 interface PackageJson {
   scripts?: Record<string, unknown>;
@@ -186,7 +186,7 @@ export function appProjectProblem(projectRoot: string): AppProjectProblem | null
       message: `${file} is not valid JSON (${parseError}), so Stim cannot tell whether this is a React Native or Expo app.`,
       remedy: `Fix the JSON in ${file} -- an unfinished edit or a merge conflict leaves it unparseable -- then run the command again.`,
     };
-  if (declaresAppDependency(pkg) || projectMetroCommand(projectRoot)) return null;
+  if (declaresAppDependency(pkg) || projectSetsMetroCommand(projectRoot)) return null;
   return {
     kind: 'not-an-app',
     message: `${file} depends on neither react-native nor expo, so this is not a React Native or Expo app.`,
